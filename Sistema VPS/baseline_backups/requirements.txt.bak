@@ -1,0 +1,16 @@
+streamlit
+pandas
+plotly
+yfinance
+psutil
+mt5linux
+rpyc
+requests
+mysql-connector-python
+python-dotenv
+SQLAlchemy
+ollama
+scipy
+numpy
+pandas-market-calendars
+gunicorn

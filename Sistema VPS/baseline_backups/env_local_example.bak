@@ -1,0 +1,73 @@
+# --- SMC Trader System 7.0 - VPS Environment (example) ---
+
+# MT5 Linux Bridges (dual-MT5)
+MT5LINUX_B3_HOST=127.0.0.1
+MT5LINUX_B3_PORT=11000
+MT5LINUX_FX_HOST=127.0.0.1
+MT5LINUX_FX_PORT=11001
+
+# MT5 Terminal Credentials (auto-login, bypass GUI)
+# B3 — XP Investimentos (XPMT5-PRD)
+MT5_B3_LOGIN=
+MT5_B3_PASSWORD=
+MT5_B3_SERVER=XPMT5-PRD
+# Forex — Exness (Exness-MT5Trial11)
+MT5_FX_LOGIN=
+MT5_FX_PASSWORD=
+MT5_FX_SERVER=Exness-MT5Trial11
+
+# MySQL
+MYSQL_ROOT_PASSWORD=rootpassword
+MYSQL_PASSWORD=smc_password
+MYSQL_HOST=127.0.0.1
+MYSQL_PORT=3306
+MYSQL_DATABASE=smc_trader_2_db
+MYSQL_USER=smc_user
+
+# OpenRouter (IA principal - cloud)
+# Set OPENROUTER_ENABLED=true and OPENROUTER_API_KEY to enable cloud AI
+OPENROUTER_ENABLED=false
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=openai/gpt-oss-20b:free
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_DAILY_LIMIT=950
+OPENROUTER_TIMEOUT=120
+
+# OpenRouter Model Discovery & FREE_ONLY Mode
+# FREE_ONLY = only zero-price models; never consume paid credits
+OPENROUTER_MODEL_MODE=FREE_ONLY
+OPENROUTER_AUTO_DISCOVER_FREE_MODELS=true
+OPENROUTER_FREE_MODELS_CACHE_TTL_HOURS=6
+OPENROUTER_FREE_MAX_MODELS_IN_QUEUE=8
+OPENROUTER_RPM_LIMIT=18
+
+# OpenRouter News Model (lightweight, fast)
+OPENROUTER_NEWS_MODEL=google/gemini-2.5-flash-preview:free
+OPENROUTER_NEWS_TIMEOUT=30
+
+# OpenRouter Preferred Free Models (ordered by priority)
+AI_PREFERRED_FREE_MODELS=openai/gpt-oss-20b:free,openai/gpt-oss-120b:free,google/gemini-2.5-flash-preview:free,meta-llama/llama-4-scout:free,google/gemma-4-26b-a4b-it:free,nvidia/nemotron-3-nano-30b-a3b:free,minimax/minimax-m2.5:free,openrouter/free
+
+# Ollama (IA local - fallback)
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2:3b
+OLLAMA_NEWS_MODEL=gemma3:1b
+OLLAMA_TIMEOUT=600
+
+# IA - Parametros de inferencia
+AI_JSON_TEMPERATURE=0
+AI_JSON_NUM_CTX=4096
+
+# ---------------------------------------------------------------------------
+# Web Alert Sync — Contabo VPS → Hostinger Laravel
+# ---------------------------------------------------------------------------
+WEB_ALERT_SYNC_ENABLED=false
+WEB_ALERT_URL=https://maximustrade.com.br/api/scanner/alerts
+WEB_ALERT_INTERNAL_TOKEN=
+WEB_ALERT_HMAC_SECRET=
+WEB_ALERT_TIMEOUT_SECONDS=10
+WEB_ALERT_MAX_RETRIES=3
+
+# Streamlit
+STREAMLIT_SERVER_PORT=8501
+STREAMLIT_SERVER_ADDRESS=0.0.0.0

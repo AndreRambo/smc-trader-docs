@@ -1,0 +1,22 @@
+[Unit]
+Description=SMC mt5linux Bridge Forex (porta 11001)
+After=smc-mt5-fx-terminal.service
+Requires=smc-mt5-fx-terminal.service
+
+[Service]
+Type=simple
+User=bimaq
+Environment=DISPLAY=:99
+Environment=WINEPREFIX=/home/bimaq/.wine-mt5-fx
+Environment=WINEDEBUG=fixme-all
+WorkingDirectory=/home/bimaq/.wine-mt5-fx/drive_c
+ExecStartPre=/bin/sleep 15
+ExecStart=/usr/bin/wine python -m mt5linux --port 11001 --host 0.0.0.0
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=60
+
+[Install]
+WantedBy=multi-user.target

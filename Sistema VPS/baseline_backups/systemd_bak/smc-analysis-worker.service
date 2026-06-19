@@ -1,0 +1,16 @@
+[Unit]
+Description=SMC Trader Analysis Worker (SMC V2 + Wyckoff + Elliott)
+After=network.target
+
+[Service]
+Type=simple
+User=bimaq
+WorkingDirectory=/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0
+ExecStart=/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/venv/bin/python run_analysis_worker.py --assets WINFUT:1,XAUUSDm:2,WDOFUT:3,BTCUSDm:4,USDJPYm:5,EURUSDm:6,PETR4:7,VALE3:8,ITUB3:9,XAGUSDm:10,ETHUSDm:11
+Restart=always
+RestartSec=30
+StandardOutput=append:/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/runtime/logs/analysis_worker.log
+StandardError=append:/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/runtime/logs/analysis_worker.log
+
+[Install]
+WantedBy=default.target

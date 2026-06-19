@@ -1,0 +1,16 @@
+[Unit]
+Description=SMC Trader B3 Robot (WINFUT, WDOFUT, PETR4, VALE3, ITUB3)
+After=network.target
+
+[Service]
+Type=simple
+User=bimaq
+WorkingDirectory=/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0
+ExecStart=/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/venv/bin/python run_b3.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/runtime/logs/b3_robot.log
+StandardError=append:/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/runtime/logs/b3_robot.log
+
+[Install]
+WantedBy=default.target

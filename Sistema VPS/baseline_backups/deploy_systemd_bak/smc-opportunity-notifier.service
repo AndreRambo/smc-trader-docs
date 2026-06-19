@@ -1,0 +1,19 @@
+[Unit]
+Description=Opportunity Notifier — Processa outbox de notificacoes (shadow-only)
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bimaq
+WorkingDirectory=/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/venv/bin:/usr/bin:/bin
+ExecStart=/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/venv/bin/python3 tools/run_opportunity_scanner.py --process-outbox --loop --poll-interval 5 --limit 100
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

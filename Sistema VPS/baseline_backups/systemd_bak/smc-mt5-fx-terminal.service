@@ -1,0 +1,20 @@
+[Unit]
+Description=SMC MT5 Forex Terminal (Exness)
+After=smc-xvfb.service
+Requires=smc-xvfb.service
+
+[Service]
+Type=simple
+User=bimaq
+Environment=DISPLAY=:99
+Environment=WINEPREFIX=/home/bimaq/.wine-mt5-fx
+Environment=WINEDEBUG=fixme-all
+ExecStart=/usr/bin/wine "C:\\Program Files\\MetaTrader 5 EXNESS\\terminal64.exe"
+Restart=on-failure
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=60
+
+[Install]
+WantedBy=multi-user.target

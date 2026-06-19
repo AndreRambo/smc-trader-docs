@@ -1,0 +1,13 @@
+[Unit]
+Description=SMC Trader Study Forward Shadow Runner
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=oneshot
+User=bimaq
+WorkingDirectory=/home/bimaq/projetos/smc_trader_system
+ExecStart=/home/bimaq/projetos/smc_trader_system/venv/bin/python tools/run_study_forward_shadow.py --apply --mode ONCE --assets WINFUT:1,WDOFUT:3,PETR4:7,VALE3:8,XAUUSDm:2,BTCUSDm:4
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1

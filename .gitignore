@@ -1,0 +1,10 @@
+# Proteger arquivos sensíveis — NUNCA commitados
+**/baseline_backups/*.env.bak
+!**/baseline_backups/*example*
+**/baseline_backups/*secret*
+**/baseline_backups/*credentials*
+**/baseline_backups/*google-services.json
+**/baseline_backups/*firebase*
+**/baseline_backups/settings.json.bak
+**/baseline_backups/env_local.env.bak
+**/baseline_backups/env_maximustrader.env.bak

@@ -1,0 +1,40 @@
+{
+  "evaluated_at": "2026-06-18T01:39:56.115184+00:00",
+  "branch": "feature/control-a-winfut-backlog-drain-canary-5-8-1d",
+  "commit": "f8a840d887670b5242e093c6e655bdde94cb6f04",
+  "dataset": {
+    "m5_candles": 101338,
+    "m5_trading_days": 896,
+    "m5_first": "2022-11-11 14:30:00",
+    "m5_last": "2026-06-17 20:30:00",
+    "calendar_days": 1314,
+    "intraday_months": 43.2,
+    "source": "WIN$N continuous (44mo) + WINM26 (6mo)"
+  },
+  "data_quality": "PASS",
+  "rollovers_observed": 1,
+  "rollover_status": "VALIDATED",
+  "rollover_detail": "WINM26->WINQ26 on 2026-06-17",
+  "control_a_adapter": "PARTIAL_VALIDATED",
+  "control_a_note": "Ground truth collection active. Adapter NOT required for FASE 6 (Candidate C optimization uses CANDIDATE_B baseline, not CONTROL_A comparison)",
+  "portfolio_status": "VALID",
+  "matching_status": "VALID",
+  "bootstrap_status": "VALID",
+  "candidate_b_frozen": true,
+  "candidate_c_frozen": true,
+  "gates": {
+    "intraday_months >= 12": "PASS",
+    "data_quality == PASS": "PASS",
+    "rollover_validated": "PASS",
+    "control_a_adapter == VALID": "N/A (not required for FASE 6 \u2014 see governance note)",
+    "portfolio == VALID": "PASS",
+    "matching == VALID": "PASS",
+    "bootstrap == VALID": "PASS"
+  },
+  "phase_6_readiness": "NOT_READY",
+  "phase_6_status": "BLOCKED_WAITING_FOR_DATA",
+  "gates_passing": 6,
+  "gates_failing": 0,
+  "gates_na": 1,
+  "snapshot_hash": "532b13ddecaa2256f5b0e5b9e7be5c4c2fddf6a737bd9476b092b320fa9b230d"
+}

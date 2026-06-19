@@ -1,0 +1,57 @@
+{
+  "freeze_version": "1.0.0",
+  "freeze_name": "CANDIDATE_C_SEARCH_SPACE_FREEZE_V1",
+  "frozen_at": "2026-06-18T00:00:00Z",
+  "search_space": {
+    "stop_buffer_atr": {
+      "values": [0.10, 0.15, 0.20, 0.25],
+      "type": "float",
+      "description": "Multiplicador ATR para buffer do stop. Maior = stop mais longe."
+    },
+    "max_stop_atr": {
+      "values": [2.0, 2.5, 3.0],
+      "type": "float",
+      "description": "Distancia maxima do stop em ATR."
+    },
+    "expiry_candles_m5": {
+      "values": [6, 9, 12],
+      "type": "int",
+      "description": "Candles M5 antes da ordem expirar."
+    },
+    "session_only": {
+      "values": [true, false],
+      "type": "bool",
+      "description": "Operar somente durante pregao B3 (13-21 UTC)."
+    },
+    "require_htf_for_tp3": {
+      "values": [true, false],
+      "type": "bool",
+      "description": "Exigir alinhamento H4/D1 para TP3."
+    },
+    "breakeven_after_tp1": {
+      "values": [true, false],
+      "type": "bool",
+      "description": "Mover stop para breakeven apos TP1."
+    },
+    "cooldown_bars_m5": {
+      "values": [3, 5, 8],
+      "type": "int",
+      "description": "Barras M5 minimas entre sinais."
+    }
+  },
+  "fixed_params": {
+    "require_m2_confirmation": false,
+    "m2_reason": "STUB — nao implementado. Fixado em false para todos os trials.",
+    "s4_enabled": false,
+    "s4_reason": "Setup S4 (Breaker) experimental. Nao incluido no search space.",
+    "execution_timeframe": "M5",
+    "execution_reason": "M1 disponivel apenas 6 meses. M5 fallback = AUTHORIZED_APPROXIMATION.",
+    "intrabar_policy": "STOP_FIRST_CONSERVATIVE",
+    "entry_type": "ZONE_EDGE",
+    "costs": "fixos (spread=5, slippage=5, brokerage=0.50, exchange=0.27, point_value=0.20)"
+  },
+  "total_combinations": 864,
+  "random_search_trials": 200,
+  "seed": 20260618,
+  "search_space_hash": "cafec0de00000002"
+}

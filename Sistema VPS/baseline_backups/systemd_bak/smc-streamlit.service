@@ -1,0 +1,17 @@
+[Unit]
+Description=SMC Streamlit App (porta 8501)
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=bimaq
+WorkingDirectory=/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0
+ExecStart="/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/venv/bin/python3" -m streamlit run app.py --server.port 8501 --server.address 0.0.0.0 --server.enableCORS=true --server.enableXsrfProtection=false --logger.level warning --server.headless true
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=90
+
+[Install]
+WantedBy=multi-user.target

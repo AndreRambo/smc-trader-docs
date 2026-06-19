@@ -1,0 +1,16 @@
+[Unit]
+Description=SMC Xvfb Virtual Display :99
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/Xvfb :99 -screen 0 1280x1024x24 -ac -nolisten tcp
+Restart=on-failure
+RestartSec=5
+User=bimaq
+Environment=DISPLAY=:99
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

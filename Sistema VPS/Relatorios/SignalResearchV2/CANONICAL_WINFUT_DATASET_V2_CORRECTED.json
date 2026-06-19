@@ -1,0 +1,57 @@
+{
+  "dataset_version": "CANONICAL_WINFUT_DATASET_V2_CORRECTED",
+  "dataset_revision": 2,
+  "created_at": "2026-06-17T19:33:12.772227+00:00",
+  "timezone": {
+    "source": "UTC",
+    "storage": "UTC (naive)",
+    "market": "America/Sao_Paulo",
+    "session_utc": "13:00-21:00"
+  },
+  "timeframes": {
+    "1min": {
+      "count": 51448,
+      "start": "2025-12-08 17:44:00",
+      "end": "2026-06-17 13:18:00"
+    },
+    "2min": {
+      "count": 27042,
+      "start": "2025-12-08 17:44:00",
+      "end": "2026-06-17 13:18:00"
+    },
+    "5min": {
+      "count": 11495,
+      "start": "2025-12-08 17:40:00",
+      "end": "2026-06-17 13:15:00"
+    },
+    "15min": {
+      "count": 4259,
+      "start": "2025-12-08 17:30:00",
+      "end": "2026-06-17 13:15:00"
+    },
+    "4h": {
+      "count": 3905,
+      "start": "2021-06-17 10:00:00",
+      "end": "2026-06-17 10:00:00"
+    },
+    "1d": {
+      "count": 1247,
+      "start": "2021-06-17 02:00:00",
+      "end": "2026-06-17 02:00:00"
+    }
+  },
+  "smc_v2_d1": {
+    "fvgs": 224,
+    "order_blocks": 55,
+    "bos_choch": 57,
+    "swings": 135,
+    "liquidity": 39,
+    "run_id": "recalc-D1-CORRECTED-20260617T193046-913508e6"
+  },
+  "quality_status": "VALID_FOR_COMPARATIVE_BACKTEST",
+  "rollover": "UNRESOLVED_EXPLORATORY",
+  "dataset_hash": "db1f599078d290b2d2eaafd51238b013dbb4ff243ca87447d06b986d3de6ee39",
+  "smc_v2_d1_state_hash": "795b5b20b2abf413adf78ad81a045391367a458e018b1b9d7f136ef52d117f08",
+  "code_commit": "c1b7c27",
+  "manifest_hash": "3157ce0fbca405694543aae029ebda823451c5f5bdf313977e94ab57757c1c0b"
+}

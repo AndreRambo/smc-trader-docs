@@ -1,0 +1,79 @@
+{
+  "preregistration_version": "1.0.0",
+  "preregistration_name": "PHASE_6_PREREGISTRATION_V1",
+  "registered_at": "2026-06-18T00:00:00Z",
+  "branch": "feature/phase6-candidate-c-nested-walk-forward",
+  "commit": "df1de64",
+  "experiment": {
+    "name": "FASE 6 — Nested Walk-Forward Optimization of CANDIDATE_C",
+    "type": "NESTED_WALK_FORWARD",
+    "phase": 6,
+    "status": "PENDING_EXECUTION"
+  },
+  "objective": {
+    "primary_metric": "ROBUST_PROFIT_FACTOR_LCB_95",
+    "secondary_metric": "EXPECTANCY_LCB_95",
+    "tertiary_metric": "MAX_DRAWDOWN_P95",
+    "direction": "MAXIMIZE_PF_LCB_95",
+    "bootstrap": "block bootstrap by trading day, 5000 iterations, 95% CI"
+  },
+  "dataset": {
+    "symbol": "WINFUT",
+    "asset_id": 1,
+    "source": "WIN$N continuous (44mo) + WINM26 (6mo)",
+    "m5_candles": 101338,
+    "m5_first": "2022-11-11T14:30:00",
+    "m5_last": "2026-06-17T20:30:00",
+    "intraday_months": 43.2,
+    "timeframes": ["M5", "M15", "H4", "D1"],
+    "dataset_hash": "TBD_AT_RUNTIME"
+  },
+  "methodology": {
+    "walk_forward": {
+      "outer_folds": 8,
+      "inner_folds": 2,
+      "type": "chronological, no random split",
+      "step": "expanding window"
+    },
+    "search": {
+      "type": "random",
+      "trials": 200,
+      "seed": 20260618,
+      "search_space_combinations": 864
+    },
+    "execution": {
+      "model": "ExecutionModel with STOP_FIRST_CONSERVATIVE",
+      "partials": "50/25/25",
+      "costs": "spread=5, slippage=5, brokerage=0.50, exchange=0.27",
+      "timeframe": "M5 (authorized fallback from M1)",
+      "max_open": 1,
+      "pyramiding": false
+    },
+    "anti_lookahead": {
+      "method": "snapshot at bar close time, only past data visible",
+      "validation": "every trial/fold",
+      "target_rate": "100%"
+    }
+  },
+  "constraints": {
+    "min_trades_per_fold": 5,
+    "min_pf_early_rejection": 0.50,
+    "no_holdout": true,
+    "no_live_promotion": true,
+    "no_phase_7": true,
+    "m2_disabled": true,
+    "s4_disabled": true
+  },
+  "expected_outcomes": [
+    "COMPLETED_EXPLORATORY",
+    "COMPLETED_NO_ROBUST_CANDIDATE",
+    "FAILED_TECHNICAL"
+  ],
+  "forbidden_outcomes": [
+    "DEFINITIVE_WINNER",
+    "READY_FOR_LIVE",
+    "READY_FOR_PRODUCTION",
+    "PHASE_7_STARTED"
+  ],
+  "preregistration_hash": "cafec0de00000003"
+}

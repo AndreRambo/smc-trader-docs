@@ -1,0 +1,18 @@
+[Unit]
+Description=SMC Trader Forex Robot
+After=network.target smc-mt5linux-fx.service mysql.service
+Wants=smc-mt5linux-fx.service mysql.service
+
+[Service]
+Type=simple
+User=bimaq
+WorkingDirectory=/home/bimaq/projetos/smc_trader_system
+ExecStart=/home/bimaq/projetos/smc_trader_system/venv/bin/python run_forex.py
+Restart=always
+RestartSec=15
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

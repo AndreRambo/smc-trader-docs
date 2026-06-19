@@ -1,0 +1,71 @@
+{
+  "freeze_version": "1.0.0",
+  "freeze_name": "CANDIDATE_C_PHASE6_IDENTITY_FREEZE_V1",
+  "frozen_at": "2026-06-18T00:00:00Z",
+  "branch": "feature/phase6-candidate-c-nested-walk-forward",
+  "commit": "df1de64",
+  "system": {
+    "alias": "CANDIDATE_C",
+    "baseline": "CANDIDATE_B_V3",
+    "version": "1.0.0",
+    "contract_version": "SIGNAL_CANDIDATE_C_V1_0_0"
+  },
+  "components": {
+    "signal_generation": {
+      "source": "CANDIDATE_B_V3 (intacto, nao modificado)",
+      "setups": ["S1_SWEEP_MSS_RETEST", "S2_OB_CONTINUATION", "S3_FVG_STRUCTURE", "S5_PROTECTED_SWING"],
+      "s4_enabled": false,
+      "entry_type": "ZONE_EDGE",
+      "stops": "M15 priority structural",
+      "targets": "TP1/TP2/TP3 with partials 50/25/25"
+    },
+    "candidate_c_filters": {
+      "session_filter": "B3 pregao 10h-18h BRT (13-21 UTC)",
+      "cooldown": "configurable (search space)",
+      "dedup": "zone tolerance 30%",
+      "mtf_confluence": "H4/D1 alignment for TP3"
+    },
+    "candidate_c_improvements": {
+      "market_fallback": "LIMIT expires → MARKET after N bars",
+      "m2_confirmation": "STUB — fixado em FALSE para todos os trials",
+      "dynamic_expiry": "based on ATR",
+      "breakeven": "after TP1 hit + confirmation"
+    },
+    "execution": {
+      "timeframe": "M5 (fallback autorizado de M1)",
+      "intrabar_policy": "STOP_FIRST_CONSERVATIVE",
+      "partials": "50/25/25",
+      "max_open": 1,
+      "pyramiding": false,
+      "opposite_signals": false
+    },
+    "costs": {
+      "spread_points": 5.0,
+      "slippage_points": 5.0,
+      "brokerage_per_contract": 0.50,
+      "exchange_fees_per_contract": 0.27,
+      "point_value_brl": 0.20
+    }
+  },
+  "constraints": {
+    "require_m2_confirmation": false,
+    "m2_in_search_space": false,
+    "execution_fallback": "M5 (AUTHORIZED_APPROXIMATION)",
+    "s4_enabled": false,
+    "candidate_b_modified": false,
+    "candidate_c_identity_modified": false
+  },
+  "guardrails": {
+    "shadow_only": true,
+    "research_only": true,
+    "can_promote_trade": false,
+    "apply_automatically": false,
+    "production_signal_emission": false,
+    "llm_decision_used": false,
+    "anti_lookahead": true,
+    "deterministico": true
+  },
+  "status": "EXPLORATORY_PHASE6_FINALIST",
+  "never": "DEFINITIVE_WINNER | READY_FOR_LIVE | PRODUCTION_READY",
+  "identity_hash": "cafec0de00000001"
+}

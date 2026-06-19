@@ -1,0 +1,18 @@
+[Unit]
+Description=SMC MT5 Bridges Starter (Xvfb + Terminals + mt5linux)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=oneshot
+User=bimaq
+Environment=DISPLAY=:99
+WorkingDirectory=/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0
+ExecStart=/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/start_bridges.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target
