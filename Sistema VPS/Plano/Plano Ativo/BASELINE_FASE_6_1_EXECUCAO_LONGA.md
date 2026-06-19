@@ -6,7 +6,7 @@
 **Sessão**: `tmux phase6-wf` (independente de SSH)
 **Branch**: `feature/phase6-candidate-c-nested-walk-forward`
 **Commit**: `7980be2`
-**Estimativa de conclusão**: ~2026-06-20 22:41 UTC+2 (~22h restantes a partir de 00:13)
+**Estimativa de conclusão**: ~2026-06-20 22:43 UTC+2 (~22h restantes a partir de 01:00)
 
 ---
 
@@ -115,22 +115,22 @@ Trades: 236 | PF: 4.60 | E: +0.822R | Tempo: 409s
 
 ---
 
-## 3. RESULTADOS — 2026-06-20 00:13 UTC+2
+## 3. RESULTADOS — 2026-06-20 01:00 UTC+2
 
-**Progresso**: 489/1600 fold units (30.6%) | 54 trials completos | **0 rejeitados** | **0 falhas**
-**Taxa**: | Taxa: ~49 folds/h | ETA: ~20/06 22:41 UTC+2 (~22h)
+**Progresso**: 527/1600 fold units (32.9%) | 58 trials completos | **0 rejeitados** | **0 falhas**
+**Taxa**: | Taxa: ~49 folds/h | ETA: ~20/06 22:43 UTC+2 (~22h)
 
 ### 3.1 Estatísticas gerais
 
 ```
-PF:      min=1.24   med=4.27   max=999.00   média=29.07
-E(R):    min=+0.080              med=+0.732              média=+0.804
-Entradas: min=7                 med=30                  média=36.5/fold
+PF:      min=1.24   med=4.27   max=999.00   média=27.74
+E(R):    min=+0.080              med=+0.732              média=+0.805
+Entradas: min=7                 med=30                  média=36.6/fold
 
-Total sinais: 35,061
-Total entradas: 15,755 (44.7% dos sinais geram entrada)
-Folds lucrativos (PF>1):  432/432 (100%)
-Folds PF<1:                  0/432 (0%)
+Total sinais: 37,709
+Total entradas: 16,985 (44.7% dos sinais geram entrada)
+Folds lucrativos (PF>1):  464/464 (100%)
+Folds PF<1:                  0/464 (0%)
 ```
 
 ### 3.2 Análise TP1/Stop — quantos trades pegam alvo sem stop?
@@ -139,7 +139,7 @@ Folds PF<1:                  0/432 (0%)
 
 | Estatística | Valor |
 |-------------|-------|
-| Média | **87.9%** |
+| Média | **88.4%** |
 | Mediana | **100.0%** |
 | Mínimo | 0.0% |
 | Máximo | 100% |
@@ -147,12 +147,12 @@ Folds PF<1:                  0/432 (0%)
 **Distribuição dos folds por taxa de TP1:**
 
 ```
-100%:  332 folds ( 76.9%) ██████████████████████████████████████
-90-99%:   14 folds (  3.2%) █
-75-90%:   40 folds (  9.3%) ████
+100%:  359 folds ( 77.4%) ██████████████████████████████████████
+90-99%:   16 folds (  3.4%) █
+75-90%:   42 folds (  9.1%) ████
 50-75%:    0 folds (  0.0%) 
 25-50%:    0 folds (  0.0%) 
-0-25%:   46 folds ( 10.6%) █████
+0-25%:   47 folds ( 10.1%) █████
 ```
 
 **77% das janelas de 2 meses têm ZERO stops antes do TP1.** 
@@ -166,7 +166,7 @@ Usando ~44 dias úteis por fold (janela de ~2 meses):
 | Métrica | Valor |
 |---------|-------|
 | Média de **entradas por dia** | **0.83** (< 1 por dia) |
-| Média de **TP1 por dia** | **0.73** |
+| Média de **TP1 por dia** | **0.74** |
 | Média de **stops por dia** | **0.10** |
 
 **A cada ~10 dias úteis, apenas 1 trade para no stop.** O sistema gera menos de 1 sinal por dia — é seletivo, não de volume.
@@ -193,8 +193,8 @@ Drawdown típico controlado em 2-3R. Máximo de 11.2R é raro.
 | 6 | TRIAL_0052 | 128.2 | 99% | 286 |
 | 7 | TRIAL_0034 | 128.0 | 99% | 370 |
 | 8 | TRIAL_0051 | 127.8 | 86% | 296 |
-| 9 | TRIAL_0001 | 15.2 | 99% | 266 |
-| 10 | TRIAL_0003 | 14.0 | 99% | 406 |
+| 9 | TRIAL_0054 | 15.9 | 99% | 285 |
+| 10 | TRIAL_0001 | 15.2 | 99% | 266 |
 
 ### 3.6 Bottom 5 trials (todos ainda muito lucrativos)
 
@@ -218,14 +218,14 @@ Drawdown típico controlado em 2-3R. Máximo de 11.2R é raro.
 
 ### 3.8 Análise
 
-**O que está confirmado com 30.6% concluído:**
-- **432/432 folds lucrativos** — ZERO folds perdedores em 54 trials
+**O que está confirmado com 32.9% concluído:**
+- **464/464 folds lucrativos** — ZERO folds perdedores em 58 trials
 - PF mínimo solidamente em 1.24
 - TP1 médio de 88% — a cada 10 trades, quase 9 pegam pelo menos TP1 sem stop
 - **Menos de 1 trade por dia útil** (0.83) — seletividade alta, sem overtrading
 - 0 rejeições, 0 falhas — pipeline impecável após 3 bugfixes
 
-**O que ainda pode mudar (69.4% restante):**
+**O que ainda pode mudar (67.1% restante):**
 - A barreira inferior pode ser desafiada por trials com parâmetros mais agressivos
 - TP1% médio pode oscilar com novos folds de mercado turbulento
 - O trade-off qualidade vs volume ficará mais claro com mais dados

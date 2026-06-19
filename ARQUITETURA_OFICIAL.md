@@ -857,7 +857,7 @@ maximustrade.com.br/api/sync/*
 │ │ storage/phase6_checkpoints/{run_id}/checkpoint.json             │ │
 │ │ storage/phase6_nested_wf.lock                                   │ │
 │ │ scripts/monitor_phase6.sh (cron 3h → update_phase6_report.py)  │ │
-│ │ Relatorio: docs_geral/Relatorios/SignalResearchV2/              │ │
+│ │ Relatorio: docs_geral/Sistema VPS/Plano/Plano Ativo/           │ │
 │ │            BASELINE_FASE_6_1_EXECUCAO_LONGA.md                  │ │
 │ └─────────────────────────────────────────────────────────────────┘ │
 │                                                                     │
@@ -1009,7 +1009,9 @@ probabilidade_proibida=True     → "Taxa historica de alcance", nunca "probabil
 | Site FCM | Firebase HTTP v1 — OAuth2 JWT → sendToDevice → push_logs |
 | Latencia SMC pipeline | 3-5 segundos |
 | SignalResearchV2 | Candidate C Nested Walk-Forward (Fase 6.1) — 200 trials × 8 folds = 1600 units |
-| SignalResearchV2 status | 🟢 RUNNING (tmux phase6-wf), 0 rejeicoes, 0 falhas, 100% folds PF>1 |
+| SignalResearchV2 status | 🟢 RUNNING (tmux phase6-wf), 32.9% (527/1600), 58 trials, 0 rejeicoes, 0 falhas, PF min 1.24, TP1 88.4% |
+| SignalResearchV2 ETA | ~2026-06-20 22:30 UTC+2 (~21h restantes) |
+| SignalResearchV2 monitor | cron 3h (VPS) + 9 Claude cron jobs ate 21/06 02:07 |
 | Fases concluidas | S1→S24 + Plano 1-2-3 + Fase 5 (Seguranca) + Fase 6 (E2E) + VPS Monitor + Fase 6.1 (SignalResearchV2 em execucao) |
 | Repositorios GitHub | 5 (smc-trader-system-7-local, maximus-trader-web, maximus-trader-android, smc-trader-docs, smc-mt5-infra) |
 | Script sync | sync_all.sh (raiz do workspace, 1 comando sincroniza todos os repos) |
