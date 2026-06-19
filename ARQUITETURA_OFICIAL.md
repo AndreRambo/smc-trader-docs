@@ -1,6 +1,6 @@
 # ARQUITETURA OFICIAL — SMC Trader System 7.0
 
-> Atualizado: 2026-06-20 | S24 + Fase 5-6 Seguranca+E2E + VPS Monitor + SignalResearchV2 Fase 6 (Candidate C Nested WF) + docs_geral consolidado + Arquitetura MaximusTrader + Arquitetura AppAndroid completa
+> Atualizado: 2026-06-20 | S24 + Fase 5-6 Seguranca+E2E + VPS Monitor + SignalResearchV2 Fase 6.1 (Candidate C Nested WF em execucao) + 5 repos GitHub + sync_all.sh + docs_geral consolidado + Arquitetura MaximusTrader + AppAndroid completas
 
 ---
 
@@ -1011,23 +1011,28 @@ probabilidade_proibida=True     → "Taxa historica de alcance", nunca "probabil
 | SignalResearchV2 | Candidate C Nested Walk-Forward (Fase 6.1) — 200 trials × 8 folds = 1600 units |
 | SignalResearchV2 status | 🟢 RUNNING (tmux phase6-wf), 0 rejeicoes, 0 falhas, 100% folds PF>1 |
 | Fases concluidas | S1→S24 + Plano 1-2-3 + Fase 5 (Seguranca) + Fase 6 (E2E) + VPS Monitor + Fase 6.1 (SignalResearchV2 em execucao) |
+| Repositorios GitHub | 5 (smc-trader-system-7-local, maximus-trader-web, maximus-trader-android, smc-trader-docs, smc-mt5-infra) |
+| Script sync | sync_all.sh (raiz do workspace, 1 comando sincroniza todos os repos) |
+| docs_geral | Repo proprio (smc-trader-docs), 122 arquivos versionados, .gitignore anti-secrets |
 
 ---
 
 ## 10. Estrutura de Diretorios (2026-06-20)
 
 ```
-SMC_Trader_System_7_0/            ← raiz do workspace (3 projetos)
-├── docs_geral/                   ← documentacao unificada por projeto
+SMC_Trader_System_7_0/            ← raiz do workspace (5 repos GitHub + 1 script sync)
+├── sync_all.sh                   ← script sincroniza todos os repos (commit+push)
+│
+├── docs_geral/                   ← Repo: AndreRambo/smc-trader-docs (main)
 │   ├── ARQUITETURA_OFICIAL.md    este arquivo (cobre os 3 projetos)
-│   ├── .gitignore
+│   ├── .gitignore                (protege .env.bak, settings.json.bak, secrets)
 │   │
 │   ├── Site/                     ← maximustrade.com.br
 │   │   ├── Plano/
 │   │   │   ├── Plano Ativo/
 │   │   │   └── Plano Concluidos/ (4 planos: Fase1-2, MaximusTrader, Fix Evidencias, Microservicos)
 │   │   ├── Relatorios/           (2 relatorios: Plano2, Notificacao)
-│   │   └── baseline_backups/     (migrations Laravel, .env MaximusTrader, composer/package.json)
+│   │   └── baseline_backups/     (migrations Laravel, .env example, composer/package.json)
 │   │
 │   ├── Aplicativo Android/       ← App Android (MaximusTradeSignals)
 │   │   ├── Plano/
@@ -1045,9 +1050,10 @@ SMC_Trader_System_7_0/            ← raiz do workspace (3 projetos)
 │       │   ├── Backtest/         (2 arquivos)
 │       │   ├── Soak/             soak_metrics CSV
 │       │   └── (11 relatorios gerais: baseline, decisao, E2E, seguranca, etc.)
-│       └── baseline_backups/     (systemd services, .env local, requirements.txt)
+│       └── baseline_backups/     (systemd services, .env example, requirements.txt)
 │
-├── SMC_Trader_System 7.0/        ← projeto ativo (motor Python)
+├── SMC_Trader_System 7.0/        ← Repo: AndreRambo/smc-trader-system-7-local
+│                                   Branch: feature/phase6-candidate-c-nested-walk-forward
 ├── technical_engine/           ← motor tecnico completo
 │   ├── smc_engine_v2/          STABLE_FROZEN_V2 (164 testes)
 │   ├── study_gateway/          Study + Risk Management + Forward (123 testes)
@@ -1088,7 +1094,8 @@ SMC_Trader_System_7_0/            ← raiz do workspace (3 projetos)
 ├── requirements.txt            Dependencias Python
 └── .env / settings.json        Configuracao de ambiente
 
-AppAndroid/MaximusTrader/        ← App Android nativo (57 arquivos Kotlin)
+AppAndroid/MaximusTrader/        ← Repo: AndreRambo/maximus-trader-android (main)
+                                  App Android nativo (57 arquivos Kotlin)
 ├── build.gradle.kts            Root build (plugins)
 ├── settings.gradle.kts         Project: MaximusTradeSignals
 ├── gradle/libs.versions.toml   Version catalog
@@ -1144,7 +1151,8 @@ AppAndroid/MaximusTrader/        ← App Android nativo (57 arquivos Kotlin)
 │           └── storage/AndroidSecureTokenStorage.kt
 │                      AndroidDataStoreProvider.kt
 
-MaximusTrader/                  ← Site maximustrade.com.br
+MaximusTrader/                  ← Repo: AndreRambo/maximus-trader-web (main)
+                                Site maximustrade.com.br
 ├── backend/                    Laravel 12 + PHP 8.2+
 │   ├── app/Http/Controllers/Api/ (14 controllers)
 │   │   AuthController, AdminController, PlanController,
@@ -1210,6 +1218,9 @@ SMC_Trader_System_legado/       ← legado (nao usar em producao)
   study/, paper_trading/, backtesting/, workers/, services/, training/,
   ai_agent.py, prompts_smc.py, terminal_smc_*.py, e demais arquivos pre-V2.
   Total: ~129 itens historicos para referencia apenas.
+
+MT5Backup/                      ← Repo: AndreRambo/smc-mt5-infra (main)
+  Backups e scripts MT5 infra (Wine, RPyC, configs de terminal)
 ```
 
 ---
@@ -1264,3 +1275,5 @@ SMC_Trader_System_legado/       ← legado (nao usar em producao)
 | Site AdminSystemHealth unificada | 2026-06-19 | Pagina "Saude" e "VPS Monitor" mescladas em uma unica: AdminSystemHealth.tsx. Fetch paralelo /sync/health + /admin/vps-metrics. Cards CPU/RAM/Disk/Load, sparklines SVG, servicos pgrep, rede, uptime, DB error alert, debug raw JSON. |
 | SignalResearchV2 — Candidate C Nested WF | 2026-06-19 | 200 trials × 8 folds = 1.600 backtest units. 7 parametros (stop_buffer, max_stop, expiry, session_only, htf_for_tp3, breakeven, cooldown). 3 bugs criticos corrigidos (params ignorados, bar_index=0, trackers compartilhados). Execucao via tmux phase6-wf, checkpoint/resume, relatorio auto-update via cron. |
 | docs_geral consolidado e reorganizado | 2026-06-20 | Duas pastas docs_geral unificadas em `/SMC_Trader_System_7_0/docs_geral/`. Estrutura reorganizada por projeto: Site/ (maximustrade.com.br), Sistema VPS/ (motor Python + infra), Aplicativo Android/ (MaximusTradeSignals). Cada um com Plano/{Ativo,Concluidos} + Relatorios + baseline_backups. ARQUITETURA_OFICIAL.md na raiz cobre os 3 projetos. |
+| docs_geral repo GitHub independente | 2026-06-20 | docs_geral extraido do repo principal em seu proprio repo `AndreRambo/smc-trader-docs` (main, publico). .gitignore protege .env.bak, settings.json.bak, secrets_locations.txt. Commit inicial: 122 arquivos, 33k linhas. |
+| 5 repos GitHub mapeados + sync_all.sh | 2026-06-20 | Workspace `SMC_Trader_System_7_0/` contem 5 repos: smc-trader-system-7-local (motor, branch feature), maximus-trader-web (site, main), maximus-trader-android (app, main), smc-trader-docs (docs, main), smc-mt5-infra (MT5 backup, main). Script `sync_all.sh` na raiz faz commit+push de todos com uma unica mensagem. |
