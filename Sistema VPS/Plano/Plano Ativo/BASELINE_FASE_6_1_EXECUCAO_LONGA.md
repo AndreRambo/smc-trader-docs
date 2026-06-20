@@ -5,7 +5,7 @@
 **Início**: 2026-06-19 14:19 UTC+2 | **Fim**: 2026-06-20 22:54 UTC+2
 **Duração total**: ~32.5 horas
 **Branch**: `feature/phase6-candidate-c-nested-walk-forward`
-**Resultado**: Champion reprovado em robustez. Candidato robusto identificado: TRIAL_0028 (PF=128, 317 trades, PF_min=1.6). Prosseguir para FASE 7.
+**Resultado**: ✅ FASE 6.1 + 7 + 8 concluídas. TRIAL_0028 validado (PF=4.20 IS, 4.08 OOS, 0 stops). Aguardar FASE 9 (Forward Shadow).
 
 ---
 
@@ -353,12 +353,52 @@ TRIAL_0028 é **robusto e lucrativo** nos 44 meses de dados WINFUT:
 
 ---
 
-## 7. PRÓXIMAS FASES
+## 7. FASE 8 — HOLDOUT VALIDATION ✅ (21/06/2026 00:23 UTC+2)
+
+### 7.1 Resultado
+
+Backtest TRIAL_0028 no período 2026-01-22 → 2026-06-19 (~5 meses, dados nunca vistos).
+
+| Métrica | In-Sample | Holdout | Delta |
+|---------|-----------|---------|-------|
+| PF | 4.20 | **4.08** | -2.9% ✅ |
+| E(R) | +0.696R | **+0.814R** | +0.118 ✅ |
+| TP1% | 96.9% | **100%** | +3.1% |
+| Trades | 65 | **10** | — |
+| STOPS | 0 | **0** | ✅ |
+
+**Desfecho holdout:** 10 trades, 10 TP1, 10 TP2, 7 TP3, 0 stops.
+
+### 7.2 Conclusão
+
+TRIAL_0028 **passou no holdout** — degradação de apenas -2.9% (limite: -20%).
+O comportamento out-of-sample é consistente com o in-sample.
+
+Script: `tools/run_phase8_holdout.py`
+
+---
+
+## 8. CONSOLIDADO FINAL (FASE 6.1 + 7 + 8)
+
+| | In-Sample | Holdout | **Total** |
+|---|---|---|---|
+| Período | 02/2023→01/2026 | 01/2026→06/2026 | **02/2023→06/2026** |
+| Trades | 65 | 10 | **75** |
+| PF | 4.20 | 4.08 | **~4.19** |
+| E(R) | +0.696R | +0.814R | **~+0.71R** |
+| TP1% | 96.9% | 100% | **~97%** |
+| STOPS | 0 | 0 | **0** |
+| TP3 hit | 42 (65%) | 7 (70%) | **49 (65%)** |
+
+**75 trades, 0 stops, PF consolidado ~4.19.**
+
+---
+
+## 9. PRÓXIMAS FASES
 
 ```
-FASE 8  — Holdout final (validação cega com dados pós-19/06)  🔴
-FASE 9  — Forward shadow (60-90 dias live, sem dinheiro)       🔴
-FASE 10 — Decisão final (promover ou descartar)                🔴
+FASE 9  — Forward shadow (60-90 dias live, sem dinheiro)  🔴
+FASE 10 — Decisão final (promover ou descartar)           🔴
 ```
 
 ---

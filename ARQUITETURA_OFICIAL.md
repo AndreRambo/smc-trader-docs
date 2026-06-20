@@ -1030,9 +1030,9 @@ probabilidade_proibida=True     → "Taxa historica de alcance", nunca "probabil
 | Frontend console.logs removidos | 18 statements (7 renderers, 2 hooks, 1 normalizer) |
 | Replay features | Date picker custom, context antes do start, Elliott/Wyckoff overlay, SMC toggles, IA Panel, Watchlist |
 | SignalResearchV2 | Candidate C Nested Walk-Forward (Fase 6.1) — 200 trials × 8 folds = 1600 units |
-| SignalResearchV2 status | ✅ FASE 6.1 COMPLETED + FASE 7 COMPLETED — TRIAL_0028 confirmado (PF=4.20, E=+0.696R, 65 trades, 0 stops, 96.9% TP1) |
-| SignalResearchV2 DB | trade_backtest_runs (run_id=5) + trade_backtest_results (65 rows) |
-| SignalResearchV2 proximo | FASE 8 — Holdout final com dados novos (após rollover WINQ26→WINZ26) |
+| SignalResearchV2 status | ✅ FASE 6.1 + 7 + 8 CONCLUÍDAS — TRIAL_0028 validado IS+OOS (PF~4.19, 75 trades, 0 stops, 97% TP1) |
+| SignalResearchV2 DB | trade_backtest_runs (run_id=5 IS, run_id=6 OOS) + trade_backtest_results (75 rows) |
+| SignalResearchV2 proximo | FASE 9 — Forward Shadow (60-90 dias live paper trading) |
 | Fases concluidas | S1→S24 + Plano 1-2-3 + Fase 5 (Seguranca) + Fase 6 (E2E) + VPS Monitor + Fase 6.1 + Fase 7 |
 | Repositorios GitHub | 5 (smc-trader-system-7-local, maximus-trader-web, maximus-trader-android, smc-trader-docs, smc-mt5-infra) |
 | Script sync | sync_all.sh (raiz do workspace, 1 comando sincroniza todos os repos) |
