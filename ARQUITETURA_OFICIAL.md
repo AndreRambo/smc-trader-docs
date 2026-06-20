@@ -1,6 +1,6 @@
 # ARQUITETURA OFICIAL — SMC Trader System 7.0
 
-> Atualizado: 2026-06-20 23:00 | Per-type SMC renderers (7 pipelines independentes) + Replay com dados reais + 1H adicionado ao pipeline + 10 tabelas smc_v2_* no Hostinger + sync dual-path
+> Atualizado: 2026-06-20 24:00 | Admin CRUD completo (users/plans/licenses) + Shared admin components + Backend novos endpoints + Auditoria 75+ issues + Replay Profit Pro
 
 ---
 
@@ -372,21 +372,30 @@ maximustrade.com.br/api/sync/*
 │ │ ├── App.tsx                    Rotas publicas + protegidas      │ │
 │ │ ├── index.css                  Tailwind v4 + Maximus design tokens│
 │ │ ├── contexts/AuthContext.tsx   Auth state (login, 2FA, logout)  │ │
-│ │ ├── lib/api.ts                 Fetch wrapper com auth token     │ │
-│ │ ├── hooks/                     useMarketWebSocket (Socket.IO)   │ │
+│ │ ├── lib/                                                     │ │
+│ │ │   ├── api.ts                 Fetch wrapper com auth token     │ │
+│ │ │   └── symbolMap.ts           Shared: apiSymbol, apiTimeframe, │ │
+│ │ │                              tsToUtc (unificado 3 hooks)      │ │
+│ │ ├── hooks/                                                   │ │
 │ │ │   useRealMarketData.ts        API polling candles/zones       │ │
 │ │ │   useSmcPerType.ts            Fetch unified + split per-type │ │
-│ │ │   useReplayData.ts            Fetch historico + filtro data  │ │
+│ │ │   useReplayData.ts            Fetch historico + context data  │ │
 │ │ ├── components/                                                │ │
-│ │ │   ├── CandlestickChart.tsx   Lightweight Charts v5 + SMC overlays│
-│ │ │   ├── PlotlyCandlestickChart.tsx DEPRECATED (fallback)        │ │
+│ │ │   ├── CandlestickChart.tsx   Lightweight Charts v5 + SMC +    │ │
+│ │ │   │                          replay mode integrado            │ │
 │ │ │   ├── BackgroundEffects.tsx  TickerTape, MouseGlow, GlowOrbs │ │
 │ │ │   ├── ReplayControls.tsx     Play/Pause/Speed/Seek controls  │ │
-│ │ │   └── chart/smc/            SMC per-type pipelines (24 arq)  │ │
+│ │ │   ├── ReplayDatePicker.tsx   Date picker custom DD/MM/AAAA   │ │
+│ │ │   ├── admin/                 Shared admin components          │ │
+│ │ │   │   ├── AdminModal.tsx       Modal reutilizavel              │ │
+│ │ │   │   ├── AdminField.tsx       Field/Input/Select              │ │
+│ │ │   │   ├── adminStyles.ts       Estilos compartilhados          │ │
+│ │ │ │   │   └── adminTypes.ts        Interfaces (User/Plan/License)  │ │
+│ │ │   └── chart/smc/            SMC per-type pipelines (14 arq)  │ │
 │ │ │       ├── smcTypes.ts          Types + interfaces nativas    │ │
 │ │ │       ├── smcStyle.ts          Cores SMC_COLORS + SMC_STYLE │ │
 │ │ │       ├── smcRenderUtils.ts    xFromTime, LabelPlacer        │ │
-│ │ │       ├── normalizers/         6 normalizers (1 por tipo)    │ │
+│ │ │       ├── smcNormalize.ts      Normalizador unificado         │ │
 │ │ │       ├── renderers/           7 renderers Canvas (1/tipo)   │ │
 │ │ │       └── primitives/          7 ISeriesPrimitive wrappers   │ │
 │ │ └── pages/                                                     │ │
@@ -401,7 +410,9 @@ maximustrade.com.br/api/sync/*
 │ │     ├── AdminEvidenceDetail.tsx Detalhe evidencia por bundleId │ │
 │ │     ├── ChartPage.tsx          Grafico + watchlist + AI panel  │ │
 │ │     ├── WatchlistPage.tsx      Multi-ativo watchlist table     │ │
-│ │     ├── ReplayPage.tsx         Replay com dados reais + chart  │ │
+│ │     ├── ReplayPage.tsx         Replay Profit Pro: date picker, │ │
+│ │     │                          context antes do start, play/    │ │
+│ │     │                          pause/seek/speed, Elliott/Wyckoff│ │
 │ │     ├── AlertasPage.tsx        Gestao de alertas usuario       │ │
 │ │     ├── IndicadoresPage.tsx    Indicadores tecnicos            │ │
 │ │     ├── AdminPlanosPage.tsx    Admin: planos CRUD              │ │
@@ -1008,12 +1019,16 @@ probabilidade_proibida=True     → "Taxa historica de alcance", nunca "probabil
 | App push | Firebase FCM v33.9.0, deep link maximus://opportunity/{id}, channel opportunity_alerts |
 | App DI | Koin 4.0.0 (commonModule 8 ViewModels + androidModule 3 platform impls) |
 | App navegacao | Jetpack Navigation Compose 2.8.0, 8 rotas, suporte deep link |
-| Site backend | Laravel 12 + PHP 8.2+ — 16 controllers, 4 middleware, 26 models, 42+ rotas API |
+| Site backend | Laravel 12 + PHP 8.2+ — 16 controllers, 4 middleware, 26 models, 48+ rotas API |
 | Site frontend | React 19 + TypeScript + Vite 8 + Tailwind 4 — 19 paginas, SMC Canvas overlay, VPS sparklines |
 | Site auth | Sanctum token (mt_ prefix, 30d) + 2FA TOTP (spomky-labs/otphp) + HMAC dual (scanner + bridge) |
 | Site webhooks | 12 gateways pagamento — endpoint unico POST /api/webhooks/{provider} |
 | Site FCM | Firebase HTTP v1 — OAuth2 JWT → sendToDevice → push_logs |
 | Latencia SMC pipeline | 3-5 segundos |
+| Frontend arquivos | 32 componentes, 3 hooks, 2 shared utilities, 4 admin components |
+| Frontend dead code removido | ~900 linhas (useMarketData, useMarketWebSocket, SmcPaneRenderer, 6 normalizers, smcLabelCollision) |
+| Frontend console.logs removidos | 18 statements (7 renderers, 2 hooks, 1 normalizer) |
+| Replay features | Date picker custom, context antes do start, Elliott/Wyckoff overlay, SMC toggles, IA Panel, Watchlist |
 | SignalResearchV2 | Candidate C Nested Walk-Forward (Fase 6.1) — 200 trials × 8 folds = 1600 units |
 | SignalResearchV2 status | 🟢 COMPLETED_EXPLORATORY — 179/200 trials, 1613 folds, 0 rejeicoes, 0 falhas, 100% folds PF>1 |
 | SignalResearchV2 resultado | Champion TRIAL_0110 (PF=253) reprovado em robustez (PF_LCB_95=-45). Candidato robusto: TRIAL_0028 (PF=128, 317 trades, PF_min=1.6, 0 folds quebrados). |
@@ -1192,16 +1207,22 @@ MaximusTrader/                  ← Repo: AndreRambo/maximus-trader-web (main)
 │   ├── src/
 │   │   main.tsx, App.tsx (BrowserRouter + AuthProvider), index.css
 │   │   contexts/AuthContext.tsx (login, 2FA, logout state)
-│   │   lib/api.ts (fetch wrapper com Bearer token)
-│   │   hooks/useMarketWebSocket.ts, useRealMarketData.ts
+│   │   lib/
+│   │   │   api.ts (fetch wrapper com Bearer token)
+│   │   │   symbolMap.ts (shared: apiSymbol, apiTimeframe, tsToUtc)
+│   │   hooks/
+│   │   │   useRealMarketData.ts (API polling candles/zones/study)
+│   │   │   useSmcPerType.ts (SMC per-type fetch + normalize)
+│   │   │   useReplayData.ts (replay: candles + context + Elliott/Wyckoff)
 │   │   components/
-│   │   │   CandlestickChart.tsx (Lightweight Charts v5)
-│   │   │   PlotlyCandlestickChart.tsx (DEPRECATED)
+│   │   │   CandlestickChart.tsx (Lightweight Charts v5 + replay mode)
 │   │   │   BackgroundEffects.tsx (TickerTape, MouseGlow, Grid)
-│   │   │   chart/smc/SmcSeriesPrimitive.ts (Canvas renderer SMC)
-│   │   │          SmcPaneRenderer.ts, SmcPaneView.ts, smcTypes.ts,
-│   │   │          smcStyle.ts, smcNormalize.ts, smcVisibility.ts,
-│   │   │          smcLabelCollision.ts
+│   │   │   ReplayControls.tsx (Play/Pause/Speed/Seek)
+│   │   │   ReplayDatePicker.tsx (custom DD/MM/AAAA HH:MM)
+│   │   │   chart/smc/
+│   │   │       smcTypes.ts, smcStyle.ts, smcRenderUtils.ts, smcNormalize.ts
+│   │   │       renderers/ (7 Canvas renderers: FVG/OB/BPR/BOS/CHOCH/LIQ/SWING)
+│   │   │       primitives/ (7 ISeriesPrimitive wrappers)
 │   │   └── pages/
 │   │       Landing, Login, Register, Dashboard, AdminSystemHealth,
 │   │       ChartPage, WatchlistPage, ReplayPage, AlertasPage,
@@ -1289,3 +1310,10 @@ MT5Backup/                      ← Repo: AndreRambo/smc-mt5-infra (main)
 | Replay com dados reais | 2026-06-20 | /admin/replay substitui dados sinteticos por dados historicos reais. ReplayChart usa lightweight-charts + mesmas per-type primitives do /admin/grafico. Filtro client-side de data, controles Play/Pause/Speed/Seek, candle series atualizada via setData() sem remount do chart. |
 | 1H adicionado ao pipeline | 2026-06-20 | TIMEFRAME_H1 adicionado em run_b3.py (import + loop), V2_TIMEFRAMES, DEFAULT_RELOAD_TIMEFRAMES, _resolve_tf_strings, _CANDLE_LIMITS, _TF_ALT, resync_winfut_full.py. 1H candles coletados e processados com pipeline SMC V2 + Elliott/Wyckoff. |
 | Replicacao 9 tabelas shadow no Hostinger | 2026-06-20 | 10 tabelas smc_v2_* no MySQL do Hostinger espelhando as technical_engine_smc_v2_*_shadow do VPS. 11 migrations Laravel + 10 models Eloquent + SyncTableController (POST /api/sync/tables/push) + SmcZoneService (leitura). Sync dual-path: novo endpoint /sync/tables/push com fallback para /sync/zones. Feature flag SMC_USE_NEW_TABLES. |
+| Replay refatorado Profit Pro style | 2026-06-20 | CandlestickChart com modo replay integrado (props opcionais). ReplayDatePicker customizado (DD/MM/AAAA HH:MM com auto-advance). Contexto antes do start (carrega dados anteriores ao range). Elliott/Wyckoff overlay + SMC toggles + IA Panel + Watchlist no replay. useReplayData busca Elliott/Wyckoff/Study. |
+| Auditoria geral site (75+ issues) | 2026-06-20 | Auditoria completa frontend+backend: 8 bugs criticos, 7 bugs menores, 21 melhorias. Fixes: EnforcePlanLimits (activeLicense→active_license), CORS (env→config+OPTIONS), Login/Register (useNavigate), ReplayPage (useEffect+useRef cleanup), symbol mapping (shared utility), dead code (~900 linhas), console.logs (18 removidos). |
+| Shared utility symbolMap.ts | 2026-06-20 | src/lib/symbolMap.ts centraliza apiSymbol, apiTimeframe, tsToUtc. Elimina mismatch entre useRealMarketData (BTCUSD) e useReplayData (BTC (BTCUSD)). 3 hooks importam do mesmo source. |
+| CORS middleware fix | 2026-06-20 | env() → config('app.frontend_url') para compatibilidade com config:cache. Adicionado retorno 200 para OPTIONS preflight requests. |
+| Admin CRUD completo | 2026-06-20 | AdminUsuariosPage: coluna Plano (nome+status+expiração), Créditos, toggle ativo/inativo, busca, exclusão. AdminPlanosPage: criar/editar/excluir planos. AdminLicencasPage: modal data (não prompt), suspender, reativar. |
+| Shared admin components | 2026-06-20 | src/components/admin/: AdminModal (reutilizável), AdminField/AdminInput/AdminSelect, adminStyles (btnPri/btnSec/btnRed/badge), adminTypes (UserItem/PlanItem/LicenseItem). Elimina duplicação entre 3 páginas admin. |
+| Backend admin endpoints | 2026-06-20 | POST /users (admin create), PUT /users/{id}/toggle-active, DELETE /users/{id}, POST/PUT/DELETE /plans. AdminController::users() retorna active_license + credit_balance. Fix duplicate apiResource('plans'). |
