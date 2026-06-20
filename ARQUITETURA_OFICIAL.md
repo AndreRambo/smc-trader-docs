@@ -1,6 +1,6 @@
 # ARQUITETURA OFICIAL — SMC Trader System 7.0
 
-> Atualizado: 2026-06-20 | S24 + Fase 5-6 Seguranca+E2E + VPS Monitor + SignalResearchV2 Fase 6.1 (Candidate C Nested WF em execucao) + 5 repos GitHub + sync_all.sh + docs_geral consolidado + Arquitetura MaximusTrader + AppAndroid completas
+> Atualizado: 2026-06-20 23:00 | Per-type SMC renderers (7 pipelines independentes) + Replay com dados reais + 1H adicionado ao pipeline + 10 tabelas smc_v2_* no Hostinger + sync dual-path
 
 ---
 
@@ -167,7 +167,7 @@ run_b3.py / run_forex.py (loop 60s, 6 TFs por ativo)
   ├─ INSERT IGNORE market_candles (todos os TFs)
   │
   └─ TRIGGER 4 (apenas quando rows_added > 0, M1 excluido)
-       V2_TIMEFRAMES = {M2, M5, M15, H4, D1}
+       V2_TIMEFRAMES = {M2, M5, M15, H1, H4, D1}
        ├─ 4a. run_v2_pipeline_and_sync(ticker, asset_id, timeframe)
        │        freshness: MAX(candles.timestamp) > MAX(v2_runs.created_at)?
        │        SE NAO → pula pipeline, apenas sync para site
@@ -268,18 +268,23 @@ PERSIST + NOTIFY:
 Candles/Zones/Studies (MySQL VPS)
   │
   ▼
-infra/database.py:
-  sync_to_web()        → POST /api/sync
-  sync_candles_only()  → POST /api/sync/candles
-  sync_zones_only()    → POST /api/sync/zones
-  sync_study_only()    → POST /api/sync/study
+infra/sync_v2.py:
+  sync_v2_shadow_zones()  → dual-path:
+    1. sync_v2_shadow_tables() → POST /api/sync/tables/push (raw rows por tabela)
+    2. FALLBACK → POST /api/sync/zones (builder unificado)
+  │
+  sync_to_web.py:
+  sync_candles()         → POST /api/sync/candles (lotes de 500)
+  sync_elliott_wyckoff() → POST /api/sync/elliott + /api/sync/wyckoff
   │
   HMAC: X-API-Key + Client-Id + Timestamp + Nonce + Signature
   │
   ▼
 maximustrade.com.br/api/sync/*
-  → sync_assets, sync_candles, sync_zones, sync_studies
+  → sync_assets, sync_candles, sync_zones, smc_v2_* (10 tabelas replicadas)
 ```
+
+**Nota:** As 9 tabelas shadow do VPS (`technical_engine_smc_v2_*_shadow`) foram replicadas no Hostinger como `smc_v2_*` (10 tabelas incluindo runs). O sync envia raw rows por tabela via `/api/sync/tables/push` (HMAC protegido). Fallback automatico para `/api/sync/zones` (tabela unificada `sync_zones`) se o novo endpoint nao estiver disponivel.
 
 ---
 
@@ -369,20 +374,21 @@ maximustrade.com.br/api/sync/*
 │ │ ├── contexts/AuthContext.tsx   Auth state (login, 2FA, logout)  │ │
 │ │ ├── lib/api.ts                 Fetch wrapper com auth token     │ │
 │ │ ├── hooks/                     useMarketWebSocket (Socket.IO)   │ │
-│ │ │                              useRealMarketData (API polling)  │ │
+│ │ │   useRealMarketData.ts        API polling candles/zones       │ │
+│ │ │   useSmcPerType.ts            Fetch unified + split per-type │ │
+│ │ │   useReplayData.ts            Fetch historico + filtro data  │ │
 │ │ ├── components/                                                │ │
 │ │ │   ├── CandlestickChart.tsx   Lightweight Charts v5 + SMC overlays│
 │ │ │   ├── PlotlyCandlestickChart.tsx DEPRECATED (fallback)        │ │
 │ │ │   ├── BackgroundEffects.tsx  TickerTape, MouseGlow, GlowOrbs │ │
-│ │ │   └── chart/smc/            SMC zone primitives (Canvas)     │ │
-│ │ │       ├── SmcSeriesPrimitive.ts Lightweight Charts ISeriesPrimitive│
-│ │ │       ├── SmcPaneRenderer.ts   Canvas renderer para zonas SMC│ │
-│ │ │       ├── SmcPaneView.ts       Pane view para overlays       │ │
-│ │ │       ├── smcTypes.ts          TypeScript types SMC          │ │
-│ │ │       ├── smcStyle.ts          Cores/estilos por tipo de zona│ │
-│ │ │       ├── smcNormalize.ts      Normalizacao de coordenadas   │ │
-│ │ │       ├── smcVisibility.ts     Visibilidade/sorting          │ │
-│ │ │       └── smcLabelCollision.ts Evita sobreposicao de labels  │ │
+│ │ │   ├── ReplayControls.tsx     Play/Pause/Speed/Seek controls  │ │
+│ │ │   └── chart/smc/            SMC per-type pipelines (24 arq)  │ │
+│ │ │       ├── smcTypes.ts          Types + interfaces nativas    │ │
+│ │ │       ├── smcStyle.ts          Cores SMC_COLORS + SMC_STYLE │ │
+│ │ │       ├── smcRenderUtils.ts    xFromTime, LabelPlacer        │ │
+│ │ │       ├── normalizers/         6 normalizers (1 por tipo)    │ │
+│ │ │       ├── renderers/           7 renderers Canvas (1/tipo)   │ │
+│ │ │       └── primitives/          7 ISeriesPrimitive wrappers   │ │
 │ │ └── pages/                                                     │ │
 │ │     ├── Landing.tsx            Landing publica + planos + CTA  │ │
 │ │     ├── Login.tsx              Login com 2FA (code + recovery) │ │
@@ -395,7 +401,7 @@ maximustrade.com.br/api/sync/*
 │ │     ├── AdminEvidenceDetail.tsx Detalhe evidencia por bundleId │ │
 │ │     ├── ChartPage.tsx          Grafico + watchlist + AI panel  │ │
 │ │     ├── WatchlistPage.tsx      Multi-ativo watchlist table     │ │
-│ │     ├── ReplayPage.tsx         Replay historico (stub)         │ │
+│ │     ├── ReplayPage.tsx         Replay com dados reais + chart  │ │
 │ │     ├── AlertasPage.tsx        Gestao de alertas usuario       │ │
 │ │     ├── IndicadoresPage.tsx    Indicadores tecnicos            │ │
 │ │     ├── AdminPlanosPage.tsx    Admin: planos CRUD              │ │
@@ -978,7 +984,7 @@ probabilidade_proibida=True     → "Taxa historica de alcance", nunca "probabil
 | Testes Laravel (S24) | 33 escritos (PHP indisponivel) |
 | Ativos | 6 (WINFUT, WDOFUT, PETR4, VALE3, XAUUSDm, BTCUSDm) |
 | Robos de coleta | 2 (run_b3.py, run_forex.py) |
-| Timeframes | 6 (M1, M2, M5, M15, H4, D1) |
+| Timeframes | 7 (M1, M2, M5, M15, H1, H4, D1) |
 | PRONTO rate (WINFUT M5, 500 samples) | 57.8% |
 | Media PRONTO (6 ativos) | ~50% |
 | Sinais Backtest S21 | 535k candles, 155k sinais, 35k setups (6 ativos, ate 24 meses) |
@@ -1009,9 +1015,9 @@ probabilidade_proibida=True     → "Taxa historica de alcance", nunca "probabil
 | Site FCM | Firebase HTTP v1 — OAuth2 JWT → sendToDevice → push_logs |
 | Latencia SMC pipeline | 3-5 segundos |
 | SignalResearchV2 | Candidate C Nested Walk-Forward (Fase 6.1) — 200 trials × 8 folds = 1600 units |
-| SignalResearchV2 status | 🟢 RUNNING (tmux phase6-wf), 32.9% (527/1600), 58 trials, 0 rejeicoes, 0 falhas, PF min 1.24, TP1 88.4% |
-| SignalResearchV2 ETA | ~2026-06-20 22:30 UTC+2 (~21h restantes) |
-| SignalResearchV2 monitor | cron 3h (VPS) + 9 Claude cron jobs ate 21/06 02:07 |
+| SignalResearchV2 status | 🟢 COMPLETED_EXPLORATORY — 179/200 trials, 1613 folds, 0 rejeicoes, 0 falhas, 100% folds PF>1 |
+| SignalResearchV2 resultado | Champion TRIAL_0110 (PF=253) reprovado em robustez (PF_LCB_95=-45). Candidato robusto: TRIAL_0028 (PF=128, 317 trades, PF_min=1.6, 0 folds quebrados). |
+| SignalResearchV2 proximo | FASE 7 — Stress test TRIAL_0028 com dados novos + backtest confirmação + DB persistence |
 | Fases concluidas | S1→S24 + Plano 1-2-3 + Fase 5 (Seguranca) + Fase 6 (E2E) + VPS Monitor + Fase 6.1 (SignalResearchV2 em execucao) |
 | Repositorios GitHub | 5 (smc-trader-system-7-local, maximus-trader-web, maximus-trader-android, smc-trader-docs, smc-mt5-infra) |
 | Script sync | sync_all.sh (raiz do workspace, 1 comando sincroniza todos os repos) |
@@ -1279,3 +1285,7 @@ MT5Backup/                      ← Repo: AndreRambo/smc-mt5-infra (main)
 | docs_geral consolidado e reorganizado | 2026-06-20 | Duas pastas docs_geral unificadas em `/SMC_Trader_System_7_0/docs_geral/`. Estrutura reorganizada por projeto: Site/ (maximustrade.com.br), Sistema VPS/ (motor Python + infra), Aplicativo Android/ (MaximusTradeSignals). Cada um com Plano/{Ativo,Concluidos} + Relatorios + baseline_backups. ARQUITETURA_OFICIAL.md na raiz cobre os 3 projetos. |
 | docs_geral repo GitHub independente | 2026-06-20 | docs_geral extraido do repo principal em seu proprio repo `AndreRambo/smc-trader-docs` (main, publico). .gitignore protege .env.bak, settings.json.bak, secrets_locations.txt. Commit inicial: 122 arquivos, 33k linhas. |
 | 5 repos GitHub mapeados + sync_all.sh | 2026-06-20 | Workspace `SMC_Trader_System_7_0/` contem 5 repos: smc-trader-system-7-local (motor, branch feature), maximus-trader-web (site, main), maximus-trader-android (app, main), smc-trader-docs (docs, main), smc-mt5-infra (MT5 backup, main). Script `sync_all.sh` na raiz faz commit+push de todos com uma unica mensagem. |
+| Per-type SMC renderers | 2026-06-20 | 7 pipelines independentes substituem o SmcPaneRenderer unificado: cada tipo (FVG, OB, BPR, BOS, CHOCH, LIQ, SWING) tem seu proprio normalizer, renderer Canvas, e ISeriesPrimitive. Debug isolado por tipo ([FVG:draw], [BOS:draw]), budget independente, toggles individuais na toolbar do admin. 24 novos arquivos frontend. |
+| Replay com dados reais | 2026-06-20 | /admin/replay substitui dados sinteticos por dados historicos reais. ReplayChart usa lightweight-charts + mesmas per-type primitives do /admin/grafico. Filtro client-side de data, controles Play/Pause/Speed/Seek, candle series atualizada via setData() sem remount do chart. |
+| 1H adicionado ao pipeline | 2026-06-20 | TIMEFRAME_H1 adicionado em run_b3.py (import + loop), V2_TIMEFRAMES, DEFAULT_RELOAD_TIMEFRAMES, _resolve_tf_strings, _CANDLE_LIMITS, _TF_ALT, resync_winfut_full.py. 1H candles coletados e processados com pipeline SMC V2 + Elliott/Wyckoff. |
+| Replicacao 9 tabelas shadow no Hostinger | 2026-06-20 | 10 tabelas smc_v2_* no MySQL do Hostinger espelhando as technical_engine_smc_v2_*_shadow do VPS. 11 migrations Laravel + 10 models Eloquent + SyncTableController (POST /api/sync/tables/push) + SmcZoneService (leitura). Sync dual-path: novo endpoint /sync/tables/push com fallback para /sync/zones. Feature flag SMC_USE_NEW_TABLES. |
