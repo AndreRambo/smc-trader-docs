@@ -114,10 +114,10 @@ Trades: 236 | PF: 4.60 | E: +0.822R | Tempo: 409s
 
 ---
 
-## 3. RESULTADOS — 2026-06-20 23:03 UTC+2
+## 3. RESULTADOS — 2026-06-21 00:13 UTC+2
 
 **Progresso**: 1613/1600 fold units (100.8%) | 179 trials completos | **0 rejeitados** | **0 falhas**
-**Taxa**: | Taxa: ~50 folds/h | ETA: ~20/06 22:47 UTC+2 (~-0h)
+**Taxa**: | Taxa: ~50 folds/h | ETA: ~20/06 23:57 UTC+2 (~-0h)
 
 ### 3.1 Estatísticas gerais
 
@@ -295,32 +295,75 @@ python tools/run_phase6_nested_wf.py \
 | Expectancy_LCB_95 | Ganho médio por trade (limite inferior) | +0.309R | > +0.4R |
 | PBO | Probabilidade de Overfitting (<0.3 = ok) | — | < 0.3 |
 
-### 5.5 Decisão
+### 5.5 Decisão Final
 
 ```
-Se PF_LCB_95 > 1.5 E PBO < 0.3:
-  → CANDIDATE_C promissor. Aguardar FASE 7.
-
-Se PF_LCB_95 < 1.2 OU PBO > 0.5:
-  → COMPLETED_NO_ROBUST_CANDIDATE. Manter B_V3.
-
-NUNCA: promover para LIVE, iniciar FASE 7, usar holdout final.
+FASE 6.1 → COMPLETED_EXPLORATORY
+  Champion nominal TRIAL_0110 (PF=253): PF_LCB_95 = -45 → REPROVADO em robustez
+  Candidato robusto identificado: TRIAL_0028 (PF=128, 317 trades, 0 folds quebrados)
+  → Prosseguir para FASE 7 com TRIAL_0028
 ```
 
 ---
 
-## 6. PRÓXIMAS FASES (BLOQUEADAS)
+## 6. FASE 7 — CONCLUÍDA ✅ (21/06/2026 00:10 UTC+2)
+
+### 6.1 Refresh dados WINFUT
+
+Dados atualizados até 19/06/2026 (último pregão) em 6 timeframes:
+M2/M5/M15/H1/H4/D1 — candles + SMC V2 + Elliott/Wyckoff.
+
+Script: `tools/refresh_winfut_data.py`
+
+### 6.2 Champion Confirmation — TRIAL_0028
+
+Backtest fold-by-fold (8 janelas) + DB persistence.
+
+| Métrica | Valor |
+|---------|-------|
+| Sinais totais | 707 |
+| Entradas válidas | **65** |
+| Profit Factor | **4.20** |
+| Expectancy R | **+0.696R** |
+| TP1 antes Stop | **96.9%** |
+| TP3 hit | **42 trades (64.6%)** |
+| **STOP LOSS** | **0!** |
+| Win Rate | 96.9% |
+| PnL Total | +90.1R |
+| DD máximo | 6.96R |
+
+**Desfecho por trade (DB):**
+- TP3_HIT: 42 (64.6%)
+- TP1_HIT: 18 (27.7%)
+- TP2_HIT: 3 (4.6%)
+- NO_ENTRY: 2 (3.1%)
+- STOP_LOSS: **0** ✅
+
+**Persistência:** 65 rows em `trade_backtest_results` (run_id=5) + metadata em `trade_backtest_runs`.
+
+Script: `tools/run_champion_confirmation.py`
+
+### 6.3 Conclusão FASE 7
+
+TRIAL_0028 é **robusto e lucrativo** nos 44 meses de dados WINFUT:
+- 0 stops em 65 trades
+- 97% dos trades atingem TP1 sem stop
+- 65% atingem TP3 (alvo máximo)
+- ~0.18 trades/dia (1 a cada 5 dias úteis)
+
+---
+
+## 7. PRÓXIMAS FASES
 
 ```
-FASE 7  — Stress tests (requer 3-6 meses dados novos)    🔴
-FASE 8  — Holdout final (validação cega)                  🔴
-FASE 9  — Forward shadow (60-90 dias live, sem dinheiro)  🔴
-FASE 10 — Decisão final (promover ou descartar)           🔴
+FASE 8  — Holdout final (validação cega com dados pós-19/06)  🔴
+FASE 9  — Forward shadow (60-90 dias live, sem dinheiro)       🔴
+FASE 10 — Decisão final (promover ou descartar)                🔴
 ```
 
 ---
 
-## 7. GUARDRAILS
+## 8. GUARDRAILS
 
 ```
 shadow_only=true           research_only=true

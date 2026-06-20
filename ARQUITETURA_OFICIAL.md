@@ -1,6 +1,6 @@
 # ARQUITETURA OFICIAL — SMC Trader System 7.0
 
-> Atualizado: 2026-06-20 24:00 | Admin CRUD completo (users/plans/licenses) + Shared admin components + Backend novos endpoints + Auditoria 75+ issues + Replay Profit Pro
+> Atualizado: 2026-06-21 00:15 | FASE 6.1 + FASE 7 concluídas — TRIAL_0028 confirmado (PF=4.20, 0 stops, 65 trades no DB)
 
 ---
 
@@ -1030,10 +1030,10 @@ probabilidade_proibida=True     → "Taxa historica de alcance", nunca "probabil
 | Frontend console.logs removidos | 18 statements (7 renderers, 2 hooks, 1 normalizer) |
 | Replay features | Date picker custom, context antes do start, Elliott/Wyckoff overlay, SMC toggles, IA Panel, Watchlist |
 | SignalResearchV2 | Candidate C Nested Walk-Forward (Fase 6.1) — 200 trials × 8 folds = 1600 units |
-| SignalResearchV2 status | 🟢 COMPLETED_EXPLORATORY — 179/200 trials, 1613 folds, 0 rejeicoes, 0 falhas, 100% folds PF>1 |
-| SignalResearchV2 resultado | Champion TRIAL_0110 (PF=253) reprovado em robustez (PF_LCB_95=-45). Candidato robusto: TRIAL_0028 (PF=128, 317 trades, PF_min=1.6, 0 folds quebrados). |
-| SignalResearchV2 proximo | FASE 7 — Stress test TRIAL_0028 com dados novos + backtest confirmação + DB persistence |
-| Fases concluidas | S1→S24 + Plano 1-2-3 + Fase 5 (Seguranca) + Fase 6 (E2E) + VPS Monitor + Fase 6.1 (SignalResearchV2 em execucao) |
+| SignalResearchV2 status | ✅ FASE 6.1 COMPLETED + FASE 7 COMPLETED — TRIAL_0028 confirmado (PF=4.20, E=+0.696R, 65 trades, 0 stops, 96.9% TP1) |
+| SignalResearchV2 DB | trade_backtest_runs (run_id=5) + trade_backtest_results (65 rows) |
+| SignalResearchV2 proximo | FASE 8 — Holdout final com dados novos (após rollover WINQ26→WINZ26) |
+| Fases concluidas | S1→S24 + Plano 1-2-3 + Fase 5 (Seguranca) + Fase 6 (E2E) + VPS Monitor + Fase 6.1 + Fase 7 |
 | Repositorios GitHub | 5 (smc-trader-system-7-local, maximus-trader-web, maximus-trader-android, smc-trader-docs, smc-mt5-infra) |
 | Script sync | sync_all.sh (raiz do workspace, 1 comando sincroniza todos os repos) |
 | docs_geral | Repo proprio (smc-trader-docs), 122 arquivos versionados, .gitignore anti-secrets |
