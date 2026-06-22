@@ -617,7 +617,7 @@ maximustrade.com.br/api/sync/*
 
 **Localizacao:** `/home/bimaq/projetos/SMC_Trader_System_7_0/AppAndroid/MaximusTrader/`
 **Package:** `br.com.maximustrade.signals` | **Project:** `MaximusTradeSignals`
-**Modulos:** 57 arquivos Kotlin (composeApp)
+**Modulos:** 72 arquivos Kotlin (composeApp)
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
@@ -643,10 +643,10 @@ maximustrade.com.br/api/sync/*
 │ │   DashboardViewModel.kt    activeCount + recent(3)               │ │
 │ │                                                                  │ │
 │ │ features/opportunities/                                          │ │
-│ │   OpportunityListScreen.kt LazyColumn + pull-to-refresh          │ │
+│ │   OpportunityListScreen.kt LazyColumn + retry button             │ │
 │ │   OpportunityListViewModel StateFlow<OppListUiState>             │ │
 │ │   OpportunityCard.kt       Card: symbol, direction, proximity,   │ │
-│ │                            timeframe, formatDisplayTime()        │ │
+│ │                            timeframe, fmtPrice(), formatTime()   │ │
 │ │   OpportunityDetailScreen  Entrada/Stop/TPs, tempo (timeframe,   │ │
 │ │                            detectado, notificado), disclaimer    │ │
 │ │   OpportunityDetailVM      StateFlow<OpportunityDetailUiState>   │ │
@@ -669,6 +669,7 @@ maximustrade.com.br/api/sync/*
 │ │   AccountScreen.kt         Profile card (nome, email, plano),    │ │
 │ │                            device count, logout c/ confirmacao   │ │
 │ │   AccountViewModel.kt      loadAccount(), logout()               │ │
+│ │                            TokenStorage: user data persistence   │ │
 │ └─────────────────────────────────────────────────────────────────┘ │
 │                                                                     │
 │ ┌─ DOMAIN (models + repository interfaces) ────────────────────────┐ │
@@ -685,11 +686,14 @@ maximustrade.com.br/api/sync/*
 │ │                             approach_velocity_pts_min,           │ │
 │ │                             Direction enum (ALTISTA/BAIXISTA/    │ │
 │ │                             NEUTRO), RadarState enum (17 values) │ │
-│ │                             PaginatedResponse, PaginationMeta    │ │
+│ │                             PaginatedResponse, PaginationMeta,   │ │
+│ │                             EvidenceBundle/Chart/HitRates DTOs   │ │
 │ │   PreferenceModels.kt       UserPreferences (11 fields:          │ │
 │ │                             push/sound/vibration, quiet hours,   │ │
 │ │                             enabledAssets, enabledProximities,   │ │
 │ │                             maxPushesPerHour)                    │ │
+│ │   AccountType.kt            B3/FOREX/FULL enum with hardcoded    │ │
+│ │                             allowedAssets (fallback for API)     │ │
 │ │                                                                  │ │
 │ │ domain/repository/ (interfaces — zero deps de plataforma)        │ │
 │ │   AuthRepository.kt         login, verify2fa, forgotPassword,    │ │
@@ -702,25 +706,25 @@ maximustrade.com.br/api/sync/*
 │ ┌─ DATA (implementations + remote/local sources) ──────────────────┐ │
 │ │                                                                  │ │
 │ │ data/repository/                                                  │ │
-│ │   AuthRepositoryImpl.kt     ApiClient + TokenStorage             │ │
+│ │   AuthRepositoryImpl.kt     ApiClient + TokenStorage (saves      │ │
+│ │                             UserDto on login/2FA)                │ │
 │ │   DeviceRepositoryImpl.kt   ApiClient /mobile/devices            │ │
 │ │   OpportunityRepositoryImpl ApiClient /mobile/opportunities/*    │ │
-│ │   PreferencesRepositoryImpl DataStore<Preferences> (local-only)  │ │
+│ │   PreferencesRepositoryImpl DataStore + PreferenceRemoteDataSource│ │
+│ │                             (local cache + server sync)           │ │
 │ │                                                                  │ │
 │ │ data/remote/                                                      │ │
-│ │   OpportunityRemoteDataSource  Ktor → JsonObject (active, detail,│ │
-│ │                               history)                           │ │
-│ │   PreferenceRemoteDataSource   Ktor → JsonObject (GET/PUT prefs, │ │
-│ │                               assets, proximities)               │ │
+│ │   PreferenceRemoteDataSource   Ktor → GET/PUT prefs, user/assets │ │
+│ │   UserAssetRemoteDataSource    Ktor → GET /user/assets           │ │
 │ │                                                                  │ │
 │ │ data/dto/                                                         │ │
-│ │   AuthDto.kt                LoginRequest, LoginResponse,         │ │
-│ │                             Verify2faRequest, UserDto            │ │
-│ │   DeviceDto.kt              DeviceRegisterRequest, DeviceResponse│ │
 │ │   PreferenceDto.kt          PreferenceUpdateRequest, Response    │ │
+│ │   UserAssetDto.kt           UserAssetResponse, UserAssetItem,    │ │
+│ │                             UserAssetMeta (plan limits)          │ │
 │ │                                                                  │ │
 │ │ data/mapper/                                                      │ │
 │ │   OpportunityMapper.kt      Map<String,String> → OpportunityDto  │ │
+│ │                             (dead code — FCM uses FcmPayload)    │ │
 │ └─────────────────────────────────────────────────────────────────┘ │
 │                                                                     │
 │ ┌─ CORE (infra compartilhada) ────────────────────────────────────┐ │
@@ -745,11 +749,14 @@ maximustrade.com.br/api/sync/*
 │ │                                     OpportunityRepository        │ │
 │ │                             single: PreferencesRepositoryImpl → │ │
 │ │                                     PreferencesRepository        │ │
+│ │                             single: PreferenceRemoteDataSource   │ │
+│ │                             single: UserAssetRemoteDataSource    │ │
 │ │                             viewModelOf: 8 ViewModels            │ │
 │ │                                                                  │ │
 │ │ core/design/                                                      │ │
 │ │   MaximusColors.kt         Paleta de cores (dark theme)          │ │
 │ │   MaximusTheme.kt          Material3 darkColorScheme             │ │
+│ │   LogoPainter.kt           Platform-specific logo painter        │ │
 │ │                                                                  │ │
 │ │ core/notifications/                                               │ │
 │ │   FcmOpportunityPayload.kt 15 campos: type, alertId,             │ │
@@ -761,11 +768,19 @@ maximustrade.com.br/api/sync/*
 │ │                                                                  │ │
 │ │ core/storage/                                                     │ │
 │ │   DataStoreProvider.kt     Interface for DataStore<Preferences>  │ │
-│ │   TokenStorage.kt          Interface: save/load/clear token +    │ │
-│ │                            deviceId                              │ │
+│ │   TokenStorage.kt          Interface: save/load/clear token,     │ │
+│ │                            deviceId, user data (UserDto)         │ │
 │ │                                                                  │ │
 │ │ core/deeplink/                                                    │ │
 │ │   DeepLinkHandler.kt       URI parser: maximus://opportunity/{id}│ │
+│ │   DeepLinkEventBus.kt      SharedFlow<Long> for warm deep links  │ │
+│ │                                                                  │ │
+│ │ core/device/                                                      │ │
+│ │   DeviceInfoProvider.kt    Interface: DeviceInfo (uuid, model,   │ │
+│ │                            osVersion, platform)                  │ │
+│ │                                                                  │ │
+│ │ core/ui/                                                          │ │
+│ │   ImageDecoder.kt          decodeBase64ToBytes/decodeToImageBitmap│ │
 │ │                                                                  │ │
 │ │ core/utils/                                                       │ │
 │ │   DateTimeUtils.kt         ISO-8601 → DD/MM/AAAA HH:MM format   │ │
@@ -791,7 +806,19 @@ maximustrade.com.br/api/sync/*
 │ │                                                                  │ │
 │ │   storage/                                                        │ │
 │ │     AndroidSecureTokenStorage  EncryptedSharedPreferences        │ │
+│ │                               + UserDto persistence (JSON)       │ │
 │ │     AndroidDataStoreProvider   preferencesDataStore              │ │
+│ │                                                                  │ │
+│ │   core/device/                                                    │ │
+│ │     AndroidDeviceInfoProvider  Device uuid/model/OS via Build     │ │
+│ │                                                                  │ │
+│ │   service/                                                        │ │
+│ │     MaximusForegroundService   Persistent notification (no poll)  │ │
+│ │                                                                  │ │
+│ │   widget/                                                         │ │
+│ │     OpportunityWidget          GlanceAppWidget: latest 5 opps    │ │
+│ │     WidgetRefreshWorker        WorkManager: fetch active opps    │ │
+│ │     WidgetDataStore            DataStore for widget data cache   │ │
 │ │                                                                  │ │
 │ │ AndroidManifest.xml         INTERNET, POST_NOTIFICATIONS,        │ │
 │ │                             deep link intent-filter              │ │
@@ -1014,7 +1041,7 @@ probabilidade_proibida=True     → "Taxa historica de alcance", nunca "probabil
 | CandleWatcher cobertura | 6 ativos × 5 TFs = 30 pares monitorados (M2/M5/M15/H4/D1) |
 | App Android | br.com.maximustrade.signals — Kotlin 2.1.0 + Compose Multiplatform 1.7.3 |
 | App SDK | Min 24 (Android 7.0) / Target 35 (Android 15) |
-| App arquivos Kotlin | 57 (24 commonMain + 6 androidMain + domain/data/features/core) |
+| App arquivos Kotlin | 72 (commonMain + androidMain: domain/data/features/core + widget/service/firebase) |
 | App telas | 8 (Login, ForgotPassword, Dashboard, OpportunityList, OpportunityDetail, History, Preferences, Account) |
 | App push | Firebase FCM v33.9.0, deep link maximus://opportunity/{id}, channel opportunity_alerts |
 | App DI | Koin 4.0.0 (commonModule 8 ViewModels + androidModule 3 platform impls) |
@@ -1118,7 +1145,7 @@ SMC_Trader_System_7_0/            ← raiz do workspace (5 repos GitHub + 1 scri
 └── .env / settings.json        Configuracao de ambiente
 
 AppAndroid/MaximusTrader/        ← Repo: AndreRambo/maximus-trader-android (main)
-                                  App Android nativo (57 arquivos Kotlin)
+                                  App Android nativo (72 arquivos Kotlin)
 ├── build.gradle.kts            Root build (plugins)
 ├── settings.gradle.kts         Project: MaximusTradeSignals
 ├── gradle/libs.versions.toml   Version catalog
@@ -1130,18 +1157,20 @@ AppAndroid/MaximusTrader/        ← Repo: AndreRambo/maximus-trader-android (ma
 │       │   ├── core/
 │       │   │   ├── api/ApiClient.kt + AppConfig.kt
 │       │   │   ├── auth/AuthUtils.kt
-│       │   │   ├── deeplink/DeepLinkHandler.kt
-│       │   │   ├── design/MaximusColors.kt, MaximusTheme.kt
+│       │   │   ├── deeplink/DeepLinkHandler.kt, DeepLinkEventBus.kt
+│       │   │   ├── design/MaximusColors.kt, MaximusTheme.kt, LogoPainter.kt
+│       │   │   ├── device/DeviceInfoProvider.kt (interface)
 │       │   │   ├── di/Modules.kt (Koin commonModule)
 │       │   │   ├── notifications/FcmOpportunityPayload.kt (15 campos)
 │       │   │   │              NotificationService.kt (interface)
 │       │   │   ├── storage/DataStoreProvider.kt, TokenStorage.kt
+│       │   │   ├── ui/ImageDecoder.kt (base64 → bitmap)
 │       │   │   └── utils/DateTimeUtils.kt
 │       │   ├── data/
-│       │   │   ├── dto/AuthDto.kt, DeviceDto.kt, PreferenceDto.kt
-│       │   │   ├── mapper/OpportunityMapper.kt
-│       │   │   ├── remote/OpportunityRemoteDataSource.kt,
-│       │   │   │        PreferenceRemoteDataSource.kt
+│       │   │   ├── dto/PreferenceDto.kt, UserAssetDto.kt
+│       │   │   ├── mapper/OpportunityMapper.kt (dead code)
+│       │   │   ├── remote/PreferenceRemoteDataSource.kt,
+│       │   │   │        UserAssetRemoteDataSource.kt
 │       │   │   └── repository/AuthRepositoryImpl.kt,
 │       │   │                  DeviceRepositoryImpl.kt,
 │       │   │                  OpportunityRepositoryImpl.kt,
@@ -1149,11 +1178,13 @@ AppAndroid/MaximusTrader/        ← Repo: AndreRambo/maximus-trader-android (ma
 │       │   ├── domain/
 │       │   │   ├── model/AuthModels.kt (LoginRequest, LoginResult sealed, UserDto)
 │       │   │   │       OpportunityModels.kt (OpportunityDto 30 campos,
-│       │   │   │        PaginatedResponse, Direction enum, RadarState enum)
+│       │   │   │        PaginatedResponse, Direction enum, RadarState enum,
+│       │   │   │        EvidenceBundle/Chart/HitRates DTOs)
 │       │   │   │       PreferenceModels.kt (UserPreferences 11 campos)
+│       │   │   │       AccountType.kt (B3/FOREX/FULL enum)
 │       │   │   ├── repository/AuthRepository.kt, DeviceRepository.kt,
 │       │   │   │            OpportunityRepository.kt, PreferencesRepository.kt
-│       │   │   └── usecase/GetHistoryUseCase.kt
+│       │   │   └── usecase/GetHistoryUseCase.kt (dead code)
 │       │   └── features/
 │       │       ├── account/AccountScreen.kt, AccountViewModel.kt
 │       │       ├── auth/LoginScreen.kt, LoginViewModel.kt,
@@ -1162,17 +1193,22 @@ AppAndroid/MaximusTrader/        ← Repo: AndreRambo/maximus-trader-android (ma
 │       │       ├── history/HistoryScreen.kt, HistoryViewModel.kt
 │       │       ├── opportunities/OpportunityListScreen.kt,
 │       │       │              OpportunityListViewModel.kt,
-│       │       │              OpportunityCard.kt (reusable),
+│       │       │              OpportunityCard.kt (reusable, fmtPrice()),
 │       │       │              OpportunityDetailScreen.kt,
 │       │       │              OpportunityDetailViewModel.kt
 │       │       └── preferences/PreferencesScreen.kt, PreferencesViewModel.kt
 │       └── androidMain/kotlin/br/com/maximustrade/signals/
 │           ├── MainActivity.kt (Compose entry, deep link parse, FCM token)
 │           ├── MainApplication.kt (Koin init: common + android modules)
+│           ├── core/device/AndroidDeviceInfoProvider.kt
 │           ├── firebase/MaximusFirebaseMessagingService.kt
 │           │          AndroidNotificationService.kt
-│           └── storage/AndroidSecureTokenStorage.kt
-│                      AndroidDataStoreProvider.kt
+│           ├── service/MaximusForegroundService.kt (persistent notification)
+│           ├── storage/AndroidSecureTokenStorage.kt
+│           │                      AndroidDataStoreProvider.kt
+│           └── widget/OpportunityWidget.kt (Glance)
+│                      WidgetRefreshWorker.kt (WorkManager)
+│                      WidgetDataStore.kt
 
 MaximusTrader/                  ← Repo: AndreRambo/maximus-trader-web (main)
                                 Site maximustrade.com.br
