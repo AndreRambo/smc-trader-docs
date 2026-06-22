@@ -114,10 +114,10 @@ Trades: 236 | PF: 4.60 | E: +0.822R | Tempo: 409s
 
 ---
 
-## 3. RESULTADOS — 2026-06-21 00:13 UTC+2
+## 3. RESULTADOS — 2026-06-22 12:13 UTC+2
 
 **Progresso**: 1613/1600 fold units (100.8%) | 179 trials completos | **0 rejeitados** | **0 falhas**
-**Taxa**: | Taxa: ~50 folds/h | ETA: ~20/06 23:57 UTC+2 (~-0h)
+**Taxa**: | Taxa: ~50 folds/h | ETA: ~22/06 11:57 UTC+2 (~-0h)
 
 ### 3.1 Estatísticas gerais
 
