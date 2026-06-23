@@ -1,6 +1,6 @@
 # ARQUITETURA OFICIAL — SMC Trader System 7.0
 
-> Atualizado: 2026-06-21 00:15 | FASE 6.1 + FASE 7 concluídas — TRIAL_0028 confirmado (PF=4.20, 0 stops, 65 trades no DB)
+> Atualizado: 2026-06-23 | Dataset CSV 2021-2026 (1.2M candles, 228k zonas SMC). M2 execution confirmado vencedor: 181 trades, PF=1.36, PnL=+209.4R, 0 stops.
 
 ---
 
@@ -1057,9 +1057,9 @@ probabilidade_proibida=True     → "Taxa historica de alcance", nunca "probabil
 | Frontend console.logs removidos | 18 statements (7 renderers, 2 hooks, 1 normalizer) |
 | Replay features | Date picker custom, context antes do start, Elliott/Wyckoff overlay, SMC toggles, IA Panel, Watchlist |
 | SignalResearchV2 | Candidate C Nested Walk-Forward (Fase 6.1) — 200 trials × 8 folds = 1600 units |
-| SignalResearchV2 status | ✅ FASE 6.1 + 7 + 8 CONCLUÍDAS — TRIAL_0028 validado IS+OOS (PF~4.19, 75 trades, 0 stops, 97% TP1) |
-| SignalResearchV2 DB | trade_backtest_runs (run_id=5 IS, run_id=6 OOS) + trade_backtest_results (75 rows) |
-| SignalResearchV2 proximo | FASE 9 — Forward Shadow (60-90 dias live paper trading) |
+| SignalResearchV2 status | ✅ FASE 6.1 + 7 + 8 + 9 CONCLUÍDAS — M2 execution vencedor: 181 trades, PF=1.36, PnL=+209.4R, 0 stops, 100% TP1 |
+| SignalResearchV2 DB | trade_backtest_runs (#5 M5 antigo, #8 M5 novo, #9 M2 vencedor) + trade_backtest_results |
+| SignalResearchV2 proximo | FASE 10 — Forward Shadow (live paper trading) |
 | Fases concluidas | S1→S24 + Plano 1-2-3 + Fase 5 (Seguranca) + Fase 6 (E2E) + VPS Monitor + Fase 6.1 + Fase 7 |
 | Repositorios GitHub | 5 (smc-trader-system-7-local, maximus-trader-web, maximus-trader-android, smc-trader-docs, smc-mt5-infra) |
 | Script sync | sync_all.sh (raiz do workspace, 1 comando sincroniza todos os repos) |

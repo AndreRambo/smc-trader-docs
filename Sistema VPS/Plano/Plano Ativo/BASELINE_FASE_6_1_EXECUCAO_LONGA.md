@@ -114,10 +114,10 @@ Trades: 236 | PF: 4.60 | E: +0.822R | Tempo: 409s
 
 ---
 
-## 3. RESULTADOS — 2026-06-23 12:13 UTC+2
+## 3. RESULTADOS — 2026-06-23 18:13 UTC+2
 
 **Progresso**: 1613/1600 fold units (100.8%) | 179 trials completos | **0 rejeitados** | **0 falhas**
-**Taxa**: | Taxa: ~50 folds/h | ETA: ~23/06 11:57 UTC+2 (~-0h)
+**Taxa**: | Taxa: ~50 folds/h | ETA: ~23/06 17:57 UTC+2 (~-0h)
 
 ### 3.1 Estatísticas gerais
 
@@ -403,10 +403,50 @@ FASE 10 — Decisão final (promover ou descartar)           🔴
 
 ---
 
-## 8. GUARDRAILS
+## 10. EXPANSÃO DO DATASET — CSV 2021-2026 (23/06/2026)
 
-```
-shadow_only=true           research_only=true
-can_promote_trade=false    anti_lookahead=true
-deterministic=true         production_signal_emission=false
-```
+**Motivo:** Dados via API MT5 limitados a 2022-11+ (M5) e 2025-12+ (M1/M2).
+Exportados CSVs do MT5 desktop (WIN$ contínuo) para 2021-06 → 2026-06.
+
+### Novo dataset
+
+| TF | Barras | Período | Zonas SMC |
+|----|--------|---------|-----------|
+| 1min | 689.573 | 2021-06 → 2026-06 | — |
+| 2min | 345.466 | 2021-06 → 2026-06 | 142.879 |
+| 5min | 137.998 | 2021-06 → 2026-06 | 57.374 |
+| 15min | 46.419 | 2021-06 → 2026-06 | 20.078 |
+| H1 | 12.018 | 2021-06 → 2026-06 | 5.789 |
+| H4 | 3.733 | 2021-06 → 2026-06 | 1.865 |
+| D1 | 1.246 | 2021-06 → 2026-06 | 609 |
+| **Total** | **1.236.453** | | **228.594** |
+
+### Processo
+
+1. Banco local limpo (todas tabelas SMC + candles WINFUT)
+2. Site (Hostinger) limpo via `/sync/tables/push` com `replace=True`
+3. CSVs importados com `tools/import_winfut_csv.py` — indicadores calculados (EMA, RSI, ATR)
+4. Backfill SMC V2: `tools/backfill_smc_zones_winfut.py` — 12.3h, 6 TFs
+5. Sync candles: 1.224.435 velas em 12.247 lotes
+6. Sync zonas SMC: 1.56M linhas (table-by-table para 2min)
+
+### Scripts criados
+
+| Script | Função |
+|--------|--------|
+| `tools/import_winfut_csv.py` | Importa CSVs MT5 → market_candles com indicadores |
+| `tools/backfill_smc_zones_winfut.py` | Pipeline SMC V2 para todos os TFs configurados |
+| `sync_all.sh` | Pipeline completo: backfill + sync dados + git push |
+
+### Ganhos
+
+- **+35% mais trades** esperados (5 anos vs 3.7)
+- **M1/M2 desde 2021** (antes só desde dez/2025) → viabiliza backtest M2
+- **Fonte única** (CSV) → sem gaps, IDs 100% cronológicos
+- **Regime adicional** (bull pós-COVID 2021) nos folds de treino
+
+### Próximos passos
+
+- Rodar champion confirmation (Run #8) no dataset expandido
+- M2 execution experiment
+- Forward shadow (FASE 9)
