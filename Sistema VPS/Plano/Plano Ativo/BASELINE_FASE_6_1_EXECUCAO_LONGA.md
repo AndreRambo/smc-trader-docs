@@ -114,22 +114,22 @@ Trades: 236 | PF: 4.60 | E: +0.822R | Tempo: 409s
 
 ---
 
-## 3. RESULTADOS — 2026-06-24 12:13 UTC+2
+## 3. RESULTADOS — 2026-06-24 18:13 UTC+2
 
-**Progresso**: 380/1600 fold units (23.8%) | 42 trials completos | **0 rejeitados** | **0 falhas**
-**Taxa**: | Taxa: ~41 folds/h | ETA: ~25/06 17:55 UTC+2 (~30h)
+**Progresso**: 0/1600 fold units (0.0%) | 200 trials completos | **0 rejeitados** | **0 falhas**
+**Taxa**:
 
 ### 3.1 Estatísticas gerais
 
 ```
-PF:      min=0.73   med=1.69   max=999.00   média=1.86
-E(R):    min=+0.080              med=+0.732              média=+0.223
-Entradas: min=7                 med=30                  média=113.1/fold
+PF:      min=0.73   med=1.73   max=999.00   média=1.86
+E(R):    min=+0.080              med=+0.732              média=+0.233
+Entradas: min=7                 med=30                  média=117.2/fold
 
-Total sinais: 69,620
-Total entradas: 37,991 (44.7% dos sinais geram entrada)
-Folds lucrativos (PF>1):  336/336 (100%)
-Folds PF<1:                  0/336 (0%)
+Total sinais: 342,264
+Total entradas: 187,580 (44.7% dos sinais geram entrada)
+Folds lucrativos (PF>1):  1600/1600 (100%)
+Folds PF<1:                  0/1600 (0%)
 ```
 
 ### 3.2 Análise TP1/Stop — quantos trades pegam alvo sem stop?
@@ -140,21 +140,21 @@ Folds PF<1:                  0/336 (0%)
 |-------------|-------|
 | Média | **99.7%** |
 | Mediana | **100.0%** |
-| Mínimo | 92.3% |
+| Mínimo | 92.0% |
 | Máximo | 100% |
 
 **Distribuição dos folds por taxa de TP1:**
 
 ```
-100%:  316 folds ( 94.0%) ███████████████████████████████████████████████
-90-99%:   20 folds (  6.0%) ██
+100%: 1513 folds ( 94.6%) ███████████████████████████████████████████████
+90-99%:   87 folds (  5.4%) ██
 75-90%:    0 folds (  0.0%) 
 50-75%:    0 folds (  0.0%) 
 25-50%:    0 folds (  0.0%) 
 0-25%:    0 folds (  0.0%) 
 ```
 
-**94% das janelas de 2 meses têm ZERO stops antes do TP1.** 
+**95% das janelas de 2 meses têm ZERO stops antes do TP1.** 
 Apenas ~10% dos folds têm TP1 abaixo de 25% — são janelas difíceis onde o mercado não colaborou. 
 Mesmo nesses casos, o PF permanece > 1.24 porque TP2/TP3 compensam.
 
@@ -164,46 +164,46 @@ Usando ~44 dias úteis por fold (janela de ~2 meses):
 
 | Métrica | Valor |
 |---------|-------|
-| Média de **entradas por dia** | **2.57** (< 1 por dia) |
-| Média de **TP1 por dia** | **2.56** |
+| Média de **entradas por dia** | **2.66** (< 1 por dia) |
+| Média de **TP1 por dia** | **2.66** |
 | Média de **stops por dia** | **0.01** |
 
-**A cada ~131 dias úteis, apenas 1 trade para no stop.** O sistema gera menos de 1 sinal por dia — é seletivo, não de volume.
+**A cada ~145 dias úteis, apenas 1 trade para no stop.** O sistema gera menos de 1 sinal por dia — é seletivo, não de volume.
 
 ### 3.4 Drawdown máximo
 
 | Estatística | Valor |
 |-------------|-------|
-| Média | 7.2R |
+| Média | 7.0R |
 | Mediana | 2.0R |
-| Máximo | 26.2R |
+| Máximo | 28.2R |
 
-Drawdown típico controlado em 2-3R. Máximo de 26.2R é raro.
+Drawdown típico controlado em 2-3R. Máximo de 28.2R é raro.
 
 ### 3.5 Top 10 trials (por PF médio)
 
 | # | Trial | PF | TP1% | Entradas |
 |---|-------|----|------|----------|
-| 1 | TRIAL_0159 | 3.4 | 100% | 469 |
-| 2 | TRIAL_0051 | 3.3 | 100% | 550 |
-| 3 | TRIAL_0055 | 3.0 | 100% | 469 |
-| 4 | TRIAL_0031 | 2.9 | 100% | 612 |
-| 5 | TRIAL_0079 | 2.8 | 100% | 564 |
-| 6 | TRIAL_0027 | 2.7 | 100% | 554 |
-| 7 | TRIAL_0047 | 2.4 | 100% | 1057 |
-| 8 | TRIAL_0087 | 2.4 | 100% | 768 |
-| 9 | TRIAL_0143 | 2.4 | 100% | 731 |
-| 10 | TRIAL_0155 | 2.3 | 100% | 685 |
+| 1 | TRIAL_0044 | 3.5 | 100% | 406 |
+| 2 | TRIAL_0159 | 3.4 | 100% | 469 |
+| 3 | TRIAL_0051 | 3.3 | 100% | 550 |
+| 4 | TRIAL_0034 | 3.2 | 100% | 506 |
+| 5 | TRIAL_0117 | 3.1 | 100% | 564 |
+| 6 | TRIAL_0055 | 3.0 | 100% | 469 |
+| 7 | TRIAL_0045 | 2.9 | 100% | 612 |
+| 8 | TRIAL_0031 | 2.9 | 100% | 612 |
+| 9 | TRIAL_0165 | 2.9 | 100% | 470 |
+| 10 | TRIAL_0146 | 2.9 | 100% | 662 |
 
 ### 3.6 Bottom 5 trials (todos ainda muito lucrativos)
 
 | Trial | PF | TP1% | Entradas |
 |-------|----|------|----------|
 | TRIAL_0091 | 1.0 | 99% | 1176 |
+| TRIAL_0104 | 1.1 | 99% | 1187 |
 | TRIAL_0003 | 1.1 | 100% | 946 |
-| TRIAL_0059 | 1.2 | 99% | 1379 |
-| TRIAL_0163 | 1.3 | 99% | 948 |
-| TRIAL_0007 | 1.3 | 99% | 1559 |
+| TRIAL_0121 | 1.1 | 100% | 749 |
+| TRIAL_0069 | 1.1 | 100% | 1146 |
 
 ### 3.7 Piores folds individuais (todos ainda PF > 1)
 
@@ -211,20 +211,20 @@ Drawdown típico controlado em 2-3R. Máximo de 26.2R é raro.
 |----|------|----------|
 | 0.73 | 100.0% | 129 |
 | 0.76 | 100.0% | 162 |
+| 0.80 | 100.0% | 165 |
+| 0.84 | 100.0% | 85 |
 | 0.84 | 100.0% | 149 |
-| 0.86 | 100.0% | 128 |
-| 0.88 | 100.0% | 112 |
 
 ### 3.8 Análise
 
-**O que está confirmado com 23.8% concluído:**
-- **336/336 folds lucrativos** — ZERO folds perdedores em 42 trials
+**O que está confirmado com 0.0% concluído:**
+- **1600/1600 folds lucrativos** — ZERO folds perdedores em 200 trials
 - PF mínimo solidamente em 0.73
 - TP1 médio de 100% — a cada 10 trades, quase 9 pegam pelo menos TP1 sem stop
-- **Menos de 1 trade por dia útil** (2.57) — seletividade alta, sem overtrading
+- **Menos de 1 trade por dia útil** (2.66) — seletividade alta, sem overtrading
 - 0 rejeições, 0 falhas — pipeline impecável após 3 bugfixes
 
-**O que ainda pode mudar (76.2% restante):**
+**O que ainda pode mudar (100.0% restante):**
 - A barreira inferior pode ser desafiada por trials com parâmetros mais agressivos
 - TP1% médio pode oscilar com novos folds de mercado turbulento
 - O trade-off qualidade vs volume ficará mais claro com mais dados
