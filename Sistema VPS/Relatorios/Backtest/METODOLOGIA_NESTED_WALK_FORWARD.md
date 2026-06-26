@@ -187,7 +187,7 @@ done
 - `TP2%` — % trades que atingem TP2 sem stop
 - `TP3%` — % trades que atingem TP3 sem stop
 
-> ⚠️ `Trades` deve usar `total_valid_entries` (entradas reais), NUNCA `sample_size` (sinais totais).
+> ⚠️ `Trades` deve usar `real_trades = len([r for r in results if r.hit_entry and r.valid_entry])` (entradas reais), NUNCA `metrics.total_valid_entries` (métrica inflada) ou `sample_size` (sinais totais).
 
 ### Por fold (consistência)
 

@@ -1,6 +1,6 @@
 # ARQUITETURA OFICIAL — SMC Trader System 7.0
 
-> Atualizado: 2026-06-24 | FASE 6.2 rodando (186/200 trials). Metodologia documentada em `Sistema VPS/Relatorios/Backtest/METODOLOGIA_NESTED_WALK_FORWARD.md`. M2 + breakeven + trailing: melhor trial PF=3.45, E=0.504R.
+> Atualizado: 2026-06-25 | Nova abordagem: Análise Data-Driven (FASE A+B). Plano em `Sistema VPS/Plano/Plano Ativo/PLANO_ANALISE_DATA_DRIVEN_WINFUT.md`. Walk-forward 400 trials concluído (161/400, melhor PF=13.86 mas T/dia<2.0). Script de análise exploratória em desenvolvimento.
 
 ---
 
@@ -866,7 +866,7 @@ maximustrade.com.br/api/sync/*
 | `dashboard_shadow/` | FastAPI backend (:8008) + React frontend + Dash Plotly (:8050) |
 | `collector_manager.py` | CandleWatcher: 6 ativos × 5 TFs (M2/M5/M15/H4/D1), poll 30s, debounce 5min |
 | `mt5_connection.py` | `_load_config()`: import infra.config_manager com fallback legado |
-| `vps_monitor.py` | Coleta metrica VPS (CPU/RAM/Disk/Load/Net/Uptime/Services) via /proc/, envia POST HMAC ao site a cada 30s |
+| `vps_monitor.py` | Coleta metrica VPS (CPU/RAM/Disk/Load/Net/Uptime) via /proc/, monitora 8 servicos via pgrep, envia POST HMAC ao site a cada 30s. Servicos: asset_collector, candle_event, mt5linux, sync_watcher, run_b3.py, run_forex.py, run_opportunity_scanner, Xvfb |
 | `vps-monitor.service` | systemd unit (Restart=always) para vps_monitor.py — Python le .env direto, sem EnvironmentFile |
 
 ### 4.9 SignalResearchV2 — Pipeline de Pesquisa de Sinais
@@ -1029,7 +1029,7 @@ probabilidade_proibida=True     → "Taxa historica de alcance", nunca "probabil
 | Win rate setups (S21) | 47-50% |
 | Sinais IMINENTE+NA_ZONA/dia | ~1.5/dia (todos ativos) |
 | Servicos systemd | 11 ativos (4 scanner/notifier/forex + 4 MT5 + 2 bridge + 1 vps-monitor) + 2 robos coleta |
-| VPS Monitor | vps_monitor.py → POST 30s HMAC → Cache::put (TTL 5min). CPU/RAM/Disk/Load/Net/Uptime/Services |
+| VPS Monitor | vps_monitor.py → POST 30s HMAC → Cache::put (TTL 5min). CPU/RAM/Disk/Load/Net/Uptime/Services. Monitora 8 servicos: asset_collector, candle_event, mt5linux, sync_watcher, run_b3.py, run_forex.py, run_opportunity_scanner, Xvfb |
 | VPS Monitor status | RUNNING (systemd vps-monitor.service, Restart=always, user bimaq) |
 | Site frontend VPS | AdminSystemHealth unificada: polling 15s /admin/vps-metrics + /sync/health |
 | Endpoints Laravel | 16 controllers (14 + 2 VPS metrics: Internal + Admin) |
@@ -1057,11 +1057,11 @@ probabilidade_proibida=True     → "Taxa historica de alcance", nunca "probabil
 | Frontend console.logs removidos | 18 statements (7 renderers, 2 hooks, 1 normalizer) |
 | Replay features | Date picker custom, context antes do start, Elliott/Wyckoff overlay, SMC toggles, IA Panel, Watchlist |
 | SignalResearchV2 | Candidate C Nested Walk-Forward (Fase 6.1) — 200 trials × 8 folds = 1600 units |
-| SignalResearchV2 status | ✅ FASE 6.1 + 7 + 8 + 9 CONCLUÍDAS — M2 execution vencedor: 181 trades, PF=1.36, PnL=+209.4R, 0 stops, 100% TP1 |
-| SignalResearchV2 DB | trade_backtest_runs (#5 M5 antigo, #8 M5 novo, #9 M2 vencedor) + trade_backtest_results |
-| SignalResearchV2 proximo | Finalizar FASE 6.2 → Champion confirmation → Forward Shadow |
+| SignalResearchV2 status | ✅ FASE 6.2 concluída (161/400 trials, dados reais). Nenhum trial ≥2 T/dia com PF>2. Nova abordagem: Análise Data-Driven (FASE A+B) |
+| SignalResearchV2 DB | trade_backtest_runs (#5 M5 antigo, #8 M5 novo, #9 M2 vencedor) + trade_backtest_results (854 trades) |
+| SignalResearchV2 proximo | FASE A: análise de zonas no banco → FASE B: backtest baseado em evidências |
 | SignalResearchV2 metodologia | `Sistema VPS/Relatorios/Backtest/METODOLOGIA_NESTED_WALK_FORWARD.md` — processo completo para replicar em outros ativos |
-| Fases concluidas | S1→S24 + Plano 1-2-3 + Fase 5 (Seguranca) + Fase 6 (E2E) + VPS Monitor + Fase 6.1 + Fase 7 |
+| Fases concluidas | S1→S24 + Plano 1-2-3 + Fase 5 (Seguranca) + Fase 6 (E2E) + VPS Monitor + Fase 6.1 + Fase 6.2 (WF 400 trials) + Fase 7 |
 | Repositorios GitHub | 5 (smc-trader-system-7-local, maximus-trader-web, maximus-trader-android, smc-trader-docs, smc-mt5-infra) |
 | Script sync | sync_all.sh (raiz do workspace, 1 comando sincroniza todos os repos) |
 | docs_geral | Repo proprio (smc-trader-docs), 122 arquivos versionados, .gitignore anti-secrets |
@@ -1093,12 +1093,12 @@ SMC_Trader_System_7_0/            ← raiz do workspace (5 repos GitHub + 1 scri
 │   │
 │   └── Sistema VPS/              ← SMC Trader System (motor Python + infra)
 │       ├── Plano/
-│       │   ├── Plano Ativo/      (1 ativo: Fase 6.1 Candidate C Nested WF)
-│       │   └── Plano Concluidos/ (7 planos: Backtest, Backup, Otimizacao, E2E, Signal Candidate, etc.)
+│       │   ├── Plano Ativo/      (1 ativo: PLANO_ANALISE_DATA_DRIVEN_WINFUT.md — FASE A+B Análise Data-Driven)
+│       │   └── Plano Concluidos/ (8 planos: Fase 6.1 WF, Backtest, Backup, Otimizacao, E2E, Signal Candidate, etc.)
 │       ├── Relatorios/
 │       │   ├── SignalCandidate/  Fases 1-8 (11 arquivos, concluido)
-│       │   ├── SignalResearchV2/ Fases 0-6 (34 arquivos, Fase 6.1 em execucao)
-│       │   ├── Backtest/         (2 arquivos)
+│       │   ├── SignalResearchV2/ Fases 0-6 (34 arquivos, Fase 6.2 concluida — 161/400 trials)
+│       │   ├── Backtest/         (2 arquivos + ANALISE_ZONAS_WINFUT.md em progresso)
 │       │   ├── Soak/             soak_metrics CSV
 │       │   └── (11 relatorios gerais: baseline, decisao, E2E, seguranca, etc.)
 │       └── baseline_backups/     (systemd services, .env example, requirements.txt)
@@ -1336,7 +1336,7 @@ MT5Backup/                      ← Repo: AndreRambo/smc-mt5-infra (main)
 | Fix timestamps FVG/OB/zonas SMC | 2026-06-09 | sync_v2.py chamava run_smc_engine_v2_local() sem timestamps= — todos origin_at/display_from/display_to ficavam NULL em raw_json. Resultado: figure_builder nao conseguia posicionar zonas no eixo X e nao renderizava nenhum retangulo. Fix: salvar ts_series = pd.Series(ohlc['timestamp'].values) antes do drop(columns=['timestamp']) e passar timestamps=ts_series ao pipeline. persistence.py: FvgV2/ObV2 reconstruidos do raw_json agora incluem display_from/display_to/mitigated_at; candles carregados ANTES da geracao de visual_overlays (era pos — ohlc_for_overlay ficava vazio). |
 | Fix Forex robot modulo em cache | 2026-06-10 | smc-forex-robot.service iniciado as 21:24 carregou sync_v2.py sem o fix (arquivo modificado as 21:46). Modulo ficou em cache no processo — todos os FVG/OB Forex inseridos entre 21:24 e 01:00 tinham display_from=NULL. Fix: reiniciar o servico apos qualquer alteracao em infra/sync_v2.py. Regra: modificacoes em modulos importados por servicos systemd exigem restart do servico. |
 | Backfill completo SMC V2 3 meses | 2026-06-10 | tools/full_backfill_v2.py: TRUNCATE das 10 tabelas smc_v2_*_shadow + recalculo com janela de 3 meses para todos os ativos (B3: 20k candles 2min / Forex 24/5: 50k / Crypto 24/7: 65k) × 5 TFs (2min, 5min, 15min, 4h, 1d — excluindo 1min). Forex robot parado durante backfill (inserts concorrentes evitados), reiniciado ao final. Todos os assets: WINFUT, WDOFUT, PETR4, VALE3, ITUB3, GOLD, BTCUSD, USDJPY, EURUSD, SILVER, ETHUSD. |
-| VPS Monitor — metricas em tempo real | 2026-06-19 | VPS push (Python stdlib, /proc/) → POST HMAC 30s → Laravel Cache::put (TTL 5min). Admin le GET /admin/vps-metrics polling 15s. Sem inbound connections, sem psutil, sem migration. Sparklines SVG inline (sem lib chart externa). |
+| VPS Monitor — metricas em tempo real | 2026-06-19 | VPS push (Python stdlib, /proc/) → POST HMAC 30s → Laravel Cache::put (TTL 5min). Admin le GET /admin/vps-metrics polling 15s. Sem inbound connections, sem psutil, sem migration. Sparklines SVG inline (sem lib chart externa). Monitora 8 servicos via pgrep: asset_collector, candle_event, mt5linux, sync_watcher, run_b3.py, run_forex.py, run_opportunity_scanner, Xvfb. |
 | VPS Monitor — Python le .env direto | 2026-06-19 | systemd EnvironmentFile falhava com caracteres especiais (`)`, `!`, `@`) no .env do SMC Trader. Fix: `_load_dotenv()` em Python faz parse direto, service simplificado para `ExecStart=/usr/bin/python3` sem EnvironmentFile. |
 | Site AdminSystemHealth unificada | 2026-06-19 | Pagina "Saude" e "VPS Monitor" mescladas em uma unica: AdminSystemHealth.tsx. Fetch paralelo /sync/health + /admin/vps-metrics. Cards CPU/RAM/Disk/Load, sparklines SVG, servicos pgrep, rede, uptime, DB error alert, debug raw JSON. |
 | SignalResearchV2 — Candidate C Nested WF | 2026-06-19 | 200 trials × 8 folds = 1.600 backtest units. 7 parametros (stop_buffer, max_stop, expiry, session_only, htf_for_tp3, breakeven, cooldown). 3 bugs criticos corrigidos (params ignorados, bar_index=0, trackers compartilhados). Execucao via tmux phase6-wf, checkpoint/resume, relatorio auto-update via cron. |
