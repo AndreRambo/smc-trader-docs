@@ -1,58 +1,51 @@
-# Relatório Completo — FASE 8 Pesquisa TP1 por Contexto
-# 2026-06-26
+# FASE 8 — Pesquisa TP1 por Contexto WINFUT V1
 
-## Grade Fixa em R — OB M5
+**Data:** 2026-06-26 00:14 BRT
+**OB M5 touched:** 5056
 
-| Target R | TP1% | CI95 | Net E(R) | PF | Classificacao |
-|----------|------|------|----------|-----|---------------|
-| 0.70R | 86.3% | [85.3-87.2%] | +0.467R | 4.41 | HIGH_TP1 |
-| 0.80R | 85.5% | [84.5-86.4%] | +0.539R | 4.72 | BALANCED |
-| 0.90R | 84.5% | [83.5-85.5%] | +0.606R | 4.92 | BALANCED |
-| **1.00R** | **83.9%** | [82.9-84.9%] | **+0.679R** | **5.24** | **DEFAULT** |
-| 1.10R | 82.5% | [81.4-83.5%] | +0.733R | 5.20 | BALANCED |
-| 1.25R | 80.7% | [79.5-81.7%] | +0.816R | 5.24 | HIGH_EXPECTANCY |
-| 1.50R | 76.7% | [75.5-77.8%] | +0.918R | 4.95 | LOW_TP1 |
-| 2.00R | 68.3% | [67.1-69.6%] | +1.052R | 4.34 | REJECTED (<80%) |
+## A. Grade Fixa em R
 
----
+| Target R | Touched | TP1% | CI95 | Net E(R) | PF | Support |
+|----------|---------|------|------|----------|-----|---------|
+| 0.70R    |  5056 | 86.3% | [85.3-87.2%] | 0.4672 | 4.41 | STRONG |
+| 0.80R    |  5056 | 85.5% | [84.5-86.4%] | 0.5387 | 4.72 | STRONG |
+| 0.90R    |  5056 | 84.5% | [83.5-85.5%] | 0.6058 | 4.92 | STRONG |
+| 1.00R    |  5056 | 83.9% | [82.9-84.9%] | 0.6792 | 5.24 | STRONG |
+| 1.10R    |  5056 | 82.5% | [81.4-83.5%] | 0.7330 | 5.20 | STRONG |
+| 1.25R    |  5056 | 80.7% | [79.5-81.7%] | 0.8158 | 5.24 | STRONG |
+| 1.50R    |  5056 | 76.7% | [75.5-77.8%] | 0.9177 | 4.95 | STRONG |
+| 2.00R    |  5056 | 68.3% | [67.1-69.6%] | 1.0522 | 4.34 | STRONG |
 
-## Contexto EMA (1.00R)
+## B. Contexto EMA (1.00R)
 
-| Context | TP1% | Net E(R) | PF | Delta TP1 |
-|---------|------|----------|-----|-----------|
-| **EMA aligned** | **88.3%** | +0.767R | **7.58** | **+11.2pp** |
-| EMA not aligned | 77.1% | +0.543R | 3.38 | baseline |
+| Context | Touched | TP1% | Net E(R) | PF |
+|---------|---------|------|----------|-----|
+| ema_aligned          |  3080 | 88.3% | 0.7666 | 7.58 |
+| ema_not_aligned      |  1976 | 77.1% | 0.5430 | 3.38 |
 
-**EMA aligned transforma 1.00R de 83.9% para 88.3% TP1.**
+## C. Direção (1.00R)
 
----
+| Direction | Touched | TP1% | Net E(R) | PF |
+|-----------|---------|------|----------|-----|
+| BUY       |  2540 | 83.7% | 0.6736 | 5.13 |
+| SELL      |  2516 | 84.2% | 0.6848 | 5.35 |
 
-## Politicas Contextuais (Top 5)
+## D. Politicas Contextuais
 
-| # | Policy | TP1% | Avg R | Net E(R) | PF |
-|---|--------|------|-------|----------|-----|
-| 1 | **EMA cond 0.80R/1.25R** | **82.5%** | 1.07R | **+0.720R** | 5.13 |
-| 2 | All 1.00R | 83.9% | 1.00R | +0.679R | 5.24 |
-| 3 | BUY 1.25R / SELL 0.80R | 82.8% | 1.03R | +0.671R | 4.90 |
-| 4 | EMA cond 0.70R/1.00R | 84.9% | 0.88R | +0.604R | 4.99 |
-| 5 | All 0.80R | 85.5% | 0.80R | +0.539R | 4.72 |
+| Policy | Touched | TP1% | Net E(R) | PF | Avg Target R |
+|--------|---------|------|----------|-----|-------------|
+| ema_conditional_080_125      |  5056 | 82.5% | 0.7196 | 5.13 | 1.07 |
+| all_100R                     |  5056 | 83.9% | 0.6792 | 5.24 | 1.00 |
+| buy_125_sell_080             |  5056 | 82.8% | 0.6708 | 4.90 | 1.03 |
+| ema_conditional_070_100      |  5056 | 84.9% | 0.6040 | 4.99 | 0.88 |
+| all_080R                     |  5056 | 85.5% | 0.5387 | 4.72 | 0.80 |
 
----
+## E. Candidatos para FASE 9
 
-## Candidatos para FASE 9
-
-| # | Policy | TP1% | Target R | E(R) | PF | Papel |
-|---|--------|------|----------|------|-----|-------|
-| 1 | EMA cond 0.80R/1.25R | 82.5% | 1.07R avg | +0.720R | 5.13 | **DEFAULT_CONTEXTUAL** |
-| 2 | All 1.00R | 83.9% | 1.00R | +0.679R | 5.24 | **CONSERVATIVE** |
-| 3 | BUY 1.25R / SELL 0.80R | 82.8% | 1.03R | +0.671R | 4.90 | DIRECTIONAL |
-| 4 | EMA cond 0.70R/1.00R | 84.9% | 0.88R | +0.604R | 4.99 | HIGH_TP1 |
-| 5 | All 0.80R | 85.5% | 0.80R | +0.539R | 4.72 | CONSERVATIVE_R |
-
----
-
-## Gate
-
-**PRONTO_COM_PESQUISA_TP1_POR_CONTEXTO_WINFUT_V1** ✅
-
-**LIBERAR_FASE_9_PROBABILIDADE_E_SCORE** ✅
+| # | Policy | TP1% | Avg Target R | Net E(R) | PF | Classificacao |
+|---|--------|------|-------------|----------|-----|---------------|
+| 1 | ema_conditional_080_125      | 82.5%✅ | 1.07R | 0.7196✅ | 5.13✅ | PROMISING |
+| 2 | all_100R                     | 83.9%✅ | 1.00R | 0.6792✅ | 5.24✅ | PROMISING |
+| 3 | buy_125_sell_080             | 82.8%✅ | 1.03R | 0.6708✅ | 4.90✅ | PROMISING |
+| 4 | ema_conditional_070_100      | 84.9%✅ | 0.88R | 0.6040✅ | 4.99✅ | PROMISING |
+| 5 | all_080R                     | 85.5%✅ | 0.80R | 0.5387✅ | 4.72✅ | PROMISING |
