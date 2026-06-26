@@ -1,0 +1,73 @@
+{
+  "audit": "AUDITORIA_PRE_REPLAY_LIVE_BACKTEST_WINFUT_V1",
+  "status": "READY_FOR_PLAN_WITH_DATA_RECONSTRUCTION",
+  "gate": "READY_FOR_PLAN_WITH_DATA_RECONSTRUCTION",
+  "maximum_replay_level": "LEVEL_2_EXECUTION_COST_REALISTIC",
+  "data": {
+    "m1": "AVAILABLE_AND_CAUSAL (689573 candles, 2021-06 to 2026-06)",
+    "m2": "AVAILABLE_AND_CAUSAL (345466 candles)",
+    "m5": "AVAILABLE_AND_CAUSAL (137998 candles)",
+    "ticks": "MISSING",
+    "bid_ask": "MISSING",
+    "timezone": "datetime (BRT/UTC)",
+    "session_calendar": "NOT_VERSIONED",
+    "rollover": "NOT_FORMALIZED"
+  },
+  "causality": {
+    "ob_confirmed_at": "AVAILABLE_BUT_NEEDS_DERIVATION (display_from instead of available_at)",
+    "ob_available_at": "DERIVABLE from display_from",
+    "ob_lifecycle": "origin_at -> confirmed_at -> display_from -> mitigated_at",
+    "fvg_available_at": "AVAILABLE_AND_CAUSAL (0 nulls)",
+    "swing_confirmed_at": "AVAILABLE_AND_CAUSAL (origin_at/confirmed_at)",
+    "bos_choch_available_at": "AVAILABLE_AND_CAUSAL (event_time/broken_at)",
+    "ema_causal": "AVAILABLE_AND_CAUSAL (per-candle in market_candles)",
+    "lookahead_risks": ["OB needs display_from->available_at derivation"]
+  },
+  "architecture": {
+    "opportunity_evaluator_reusable": "REUSABLE_WITH_ADAPTER (needs HistoricalClock)",
+    "execution_model_reusability": "REUSABLE_WITH_ADAPTER (SimpleSignal->SignalCandidateV1)",
+    "historical_clock_exists": false,
+    "historical_feed_exists": false,
+    "shared_state_machine_exists": false
+  },
+  "database": {
+    "existing_backtest_tables": ["trade_backtest_results (854)", "trade_backtest_runs (11)", "technical_engine_signal_backtest_runs_shadow (0)", "technical_engine_signal_backtest_trades_shadow (0)"],
+    "existing_replay_tables": [],
+    "hard_replace_feasible": false,
+    "supersede_active_run_feasible": true,
+    "recommended_overwrite_strategy": "SUPERSEDE_ACTIVE_RUN"
+  },
+  "site": {
+    "replay_route": "ReplayPage.tsx (EXISTS)",
+    "replay_api": "MISSING (no backend endpoint)",
+    "replay_page": "EXISTS (reads candles/zones via API)",
+    "reads_database": true,
+    "supports_event_stream": false,
+    "supports_seek": false,
+    "supports_incremental_playback": false
+  },
+  "splits": {
+    "physical_manifest": true,
+    "test_final_available": true,
+    "recent_holdout_exists": true,
+    "recent_holdout_outcome_reads": 0
+  },
+  "blockers": [
+    "NO_TICKS_BID_ASK (LEVEL_2 max)",
+    "ELLIOTT_WYCKOFF_NOT_HISTORICAL (6 rows each, snapshot only)",
+    "NO_REPLAY_TABLES_IN_DB",
+    "NO_BACKEND_REPLAY_API",
+    "OB_NEEDS_AVAILABLE_AT_DERIVATION",
+    "NO_HISTORICAL_CLOCK_ADAPTER"
+  ],
+  "required_plan_phases": [
+    "Create shadow migrations for backtest/replay",
+    "Create ExecutionModel adapter",
+    "Create HistoricalClock adapter",
+    "Create event stream persistence",
+    "Integrate with site ReplayPage",
+    "Run canonical replay with ExecutionModel"
+  ],
+  "evidence_count": 15,
+  "ready_for_plan": true
+}

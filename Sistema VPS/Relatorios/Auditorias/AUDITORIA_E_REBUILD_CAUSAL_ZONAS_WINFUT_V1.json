@@ -1,0 +1,88 @@
+{
+  "audit": "AUDITORIA_E_REBUILD_CAUSAL_ZONAS_WINFUT_V1",
+  "status": "COMPLETED",
+  "gate": "PRONTO_COM_SCHEMA_CAUSAL_E_REBUILD_ZONAS_WINFUT_V1_COM_RESSALVAS",
+  "gate_reason": "SMC causal aprovado; Elliott/Wyckoff snapshots existem mas nao possuem engine causal candle-a-candle; M2 parcial (1065 de ~17K esperados)",
+  "asset": {
+    "asset_id": 1,
+    "symbol": "WINFUT",
+    "ticker": "WINFUT",
+    "alias": "WIN$"
+  },
+  "timeframes": ["M2", "M5", "M15", "H1", "H4", "D1"],
+  "database": {
+    "migration_owner": "PYTHON",
+    "tables_audited": 95,
+    "tables_modified": 5,
+    "columns_added": 10,
+    "indexes_added": 5,
+    "event_table_created": true,
+    "versioned_runs_supported": true
+  },
+  "engines": {
+    "audited": 12,
+    "modified": 0,
+    "lookahead_risks": 0,
+    "confirmed_lookahead_bugs": 0,
+    "remaining_blockers": ["Elliott/Wyckoff snapshot-only (no candle-by-candle causal engine)"]
+  },
+  "rebuild": {
+    "run_id": "causal_rebuild_v1_*",
+    "engine_version": "smc_engine_v2_causal_v1",
+    "status": "PARTIAL_COMPLETE",
+    "candles_processed": 63416,
+    "structures_written": 56509,
+    "events_written": 157427,
+    "duration_seconds": 0,
+    "note": "D1/H4/H1/M15 complete; M5 parcial (45565 structs de ~65K); M2 parcial (1065 structs)"
+  },
+  "counts": {
+    "M2": {"FVG": 411, "SWING": 297, "OB": 155, "BOS_CHOCH": 149, "LIQUIDITY": 53, "Total": 1065},
+    "M5": {"FVG": 17627, "SWING": 11353, "OB": 5652, "BOS_CHOCH": 5606, "LIQUIDITY": 5327, "Total": 45565},
+    "M15": {"FVG": 1498, "SWING": 1484, "OB": 1306, "BOS_CHOCH": 1290, "LIQUIDITY": 1013, "Total": 6591},
+    "H1": {"FVG": 499, "SWING": 459, "OB": 330, "BOS_CHOCH": 327, "LIQUIDITY": 175, "Total": 1790},
+    "H4": {"FVG": 443, "SWING": 272, "OB": 140, "BOS_CHOCH": 146, "LIQUIDITY": 53, "Total": 1054},
+    "D1": {"FVG": 234, "SWING": 104, "OB": 45, "BOS_CHOCH": 41, "LIQUIDITY": 20, "Total": 444}
+  },
+  "causality": {
+    "origin_confirmed_violations": 0,
+    "confirmed_available_violations": 0,
+    "preconfirmation_touch_violations": 0,
+    "orphan_source_candles": 0,
+    "unknown_timezones": 0,
+    "duplicate_logical_structures": 0,
+    "total_violations": 0,
+    "pass": true
+  },
+  "elliott": {
+    "rebuilt": false,
+    "status": "SNAPSHOT_ONLY",
+    "reason": "Engine elliott/ so gera snapshots finais (ctx_json). Nao suporta recálculo causal candle-a-candle. Dados existentes: 36 snapshots em technical_engine_elliott_shadow."
+  },
+  "wyckoff": {
+    "rebuilt": false,
+    "status": "SNAPSHOT_ONLY",
+    "reason": "Engine wyckoff/ detecta eventos Spring/Upthrust/SOS/SOW/Teste mas persiste apenas snapshots finais (ctx_json). Nao suporta recálculo causal completo. Dados existentes: 36 snapshots em technical_engine_wyckoff_shadow."
+  },
+  "quality": {
+    "sample_validation_pass": true,
+    "reconciliation_pass": true,
+    "causality_pass": true,
+    "tests_pass": false,
+    "reproducible": false,
+    "artifact_hashes_valid": false
+  },
+  "activation": {
+    "new_run_active": false,
+    "previous_run_preserved": true,
+    "note": "Rebuild em status READY mas nao ativado como ACTIVE. Requer completude de M2/M5 e executar testes antes da ativação."
+  },
+  "plan_update_inputs": [
+    "origin_at/confirmed_at/available_at agora persistidos para todas as estruturas SMC",
+    "lifecycle events (128K) disponíveis para replay temporal",
+    "Elliott/Wyckoff requer engine causal dedicada para incluir no replay",
+    "M5 precisa completar rebuild (parcial: 35K de ~65K esperadas)",
+    "M2 precisa completar rebuild (parcial: 1K de ~17K esperadas)"
+  ],
+  "next_action": "Completar rebuild M5 e M2, executar testes, ativar run"
+}
