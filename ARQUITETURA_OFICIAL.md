@@ -1,6 +1,6 @@
 # ARQUITETURA OFICIAL — SMC Trader System 7.0
 
-> Atualizado: 2026-06-25 | Nova abordagem: Análise Data-Driven (FASE A+B). Plano em `Sistema VPS/Plano/Plano Ativo/PLANO_ANALISE_DATA_DRIVEN_WINFUT.md`. Walk-forward 400 trials concluído (161/400, melhor PF=13.86 mas T/dia<2.0). Script de análise exploratória em desenvolvimento.
+> Atualizado: 2026-06-28 | FASE V4_04 concluída: Repositories transacionais, RSI-Heikin Ashi, persistência controlada de indicadores D1. Plano em `Sistema VPS/Plano/Plano Ativo/PLANO_EXECUTIVO_WINFUT_CAUSAL_LIVE_REPLAY_V4_ATUALIZADO_V1_2.md`. 80 testes V4, 18 tabelas `winfut_lr_v4_*`, schema-validate PASS, transaction-probe PASS.
 
 ---
 
@@ -103,6 +103,7 @@ LLM nunca calcula zonas, score, probabilidade ou decisao. O motor e 100% determi
 │   technical_engine_study_*_shadow   ← Replay runs + samples        │
 │   technical_engine_opportunity_*_shadow ← Signals/Alerts/Outbox   │
 │   technical_engine_operational_plans_shadow ← OperationalPlanV2   │
+│   winfut_lr_v4_*                   ← 18 tabelas Live-Replay V4    │
 └────────────────────────┬───────────────────────────────────────────┘
                          │
                          │ HTTP POST (HMAC Bridge + Scanner HMAC)
@@ -305,6 +306,79 @@ maximustrade.com.br/api/sync/*
 | `config.py` | OBQualityConfig, BPRQualityConfig, SMCEngineV2Config | — |
 
 **Status**: `STABLE_FROZEN_V2` — 164 testes.
+
+### 4.2 Live-Replay V4 (`live_replay_v4/`)
+
+| Modulo | Componente | Testes |
+|--------|-----------|--------|
+| `candle_clock.py` | CandleClock, CandleRef, CandleAvailability, CandleStatus | 6 |
+| `contracts.py` | CanonicalTimeframe, IndicatorEmission, IndicatorSnapshot, IndicatorSpec | 5 |
+| `config.py` | LiveReplayV4Config, TemporalConfig, VolatilityBucketConfig | 2 |
+| `hashing.py` | deterministic_hash, canonical_json_dumps, compute_state_hash, compute_content_hash | 6 |
+| `identity.py` | Structure identity + causal timestamp validation | 3 |
+| `state.py` | SerializableState with versioned restore | 4 |
+| `exceptions.py` | 18 exceptions: CausalContract, FutureData, HashConflict, RepositoryScope, FaultInjection, etc. | — |
+| `validation.py` | Foundation validation + indicator validation | 3 |
+| `schema.py` | Schema definition + validate_schema | 3 |
+| `checkpoint.py` | CheckpointService: create, load_latest, validate_integrity | 4 |
+| `dry_run_d1.py` | Dry-run D1: 250 candles, 7 indicators + RSI-HA, no writes | — |
+| `persist_sample_d1.py` | First persistence: 250 candles → 1743 indicators, INVALIDATED status | — |
+| **persistence/** | | |
+| `allowlist.py` | V4_TABLE_ALLOWLIST (18 tables), validate_table_name, is_allowed | 7 |
+| `connection.py` | get_connection with autocommit=False | 2 |
+| `repositories.py` | 11 repositories: ParentRun, TimeframeRun, StatusHistory, Chunk, Checkpoint, Indicator, Reconciliation, Validation, Error, Artifact, CandleSource | 12 |
+| `transactions.py` | ChunkTransactionService (13 steps, 9 fault injection points), chunk_transaction context manager | 5 |
+| `mappings.py` | indicator_to_row mapping | 1 |
+| **indicators/** | | |
+| `engine.py` | IncrementalIndicatorEngine: batch_reference, snapshot, restore | 8 |
+| `registry.py` | IndicatorRegistry + build_default_registry (7 basic + RSI-HA) | 2 |
+| `true_range.py` | TRUE_RANGE indicator | 2 |
+| `range_metrics.py` | RANGE indicator | 2 |
+| `ema.py` | EMA20, EMA200 indicators | 2 |
+| `rsi.py` | RSI14 indicator | 2 |
+| `atr.py` | ATR14 indicator | 2 |
+| `volatility.py` | VOLATILITY_BUCKET indicator | 2 |
+| `rsi_heikin_ashi.py` | RSI_HEIKIN_ASHI_V1: 15 features, 10 events, warm-up 31, batch/prefix/chunk invariance | 17 |
+
+**Status**: FASE V4_04 concluída — 80 testes (51 existentes + 29 novos). Branch: `feature/winfut-causal-live-replay-v4`.
+
+**Princípios V4:**
+- `shadow_only=True` — nunca escrever em tabelas oficiais
+- Nenhum commit dentro de repository
+- Allowlist imutável de tabelas V4
+- Checkpoint atômico após reconciliação e hash validation
+- RSI-HA: sem intrabar, sem futuro, sem quantil full-window
+- Estado serializável, batch reference, prefix/chunk/resume invariance
+- Hash determinístico, nenhum NaN/Infinity
+
+**Tabelas V4 (18):**
+```
+winfut_lr_v4_parent_runs        winfut_lr_v4_timeframe_runs
+winfut_lr_v4_status_history     winfut_lr_v4_chunks
+winfut_lr_v4_checkpoints        winfut_lr_v4_indicators
+winfut_lr_v4_reconciliation     winfut_lr_v4_validations
+winfut_lr_v4_errors             winfut_lr_v4_artifacts
+winfut_lr_v4_active_runs        winfut_lr_v4_structures
+winfut_lr_v4_structure_events   winfut_lr_v4_opportunities
+winfut_lr_v4_opportunity_evidence winfut_lr_v4_outcomes
+winfut_lr_v4_trade_events       winfut_lr_v4_trade_simulations
+```
+
+**RSI_HEIKIN_ASHI_V1 Features:**
+```
+RSI_HA_OPEN, RSI_HA_HIGH, RSI_HA_LOW, RSI_HA_CLOSE
+RSI_HA_SIGNAL_EMA14, RSI_HA_DIRECTION, RSI_HA_BODY
+RSI_HA_RANGE, RSI_HA_BODY_RATIO, RSI_HA_UPPER_WICK
+RSI_HA_LOWER_WICK, RSI_HA_SIGNAL_SLOPE, RSI_HA_DISTANCE_TO_SIGNAL
+RSI_HA_ZONE, RSI_HA_CROSS_EVENT
+```
+
+**RSI_HEIKIN_ASHI_V1 Events:**
+```
+BULLISH_FLIP, BEARISH_FLIP, CROSS_ABOVE_SIGNAL, CROSS_BELOW_SIGNAL
+RECOVER_30, LOSE_30, CROSS_ABOVE_50, CROSS_BELOW_50
+CROSS_ABOVE_70, CROSS_BELOW_70
+```
 
 ### 4.2 Study Gateway (`study_gateway/`)
 
@@ -982,6 +1056,29 @@ zona.mtf_aligned = True
 | `technical_engine_elliott_shadow` | Elliott ctx_json por (symbol, timeframe) — UPSERT via TRIGGER 4b |
 | `technical_engine_wyckoff_shadow` | Wyckoff ctx_json por (symbol, timeframe) — UPSERT via TRIGGER 4b |
 
+### 6.3 Tabelas Live-Replay V4 (VPS, isolamento por namespace `winfut_lr_v4_*`)
+
+| Tabela | Conteudo |
+|--------|----------|
+| `winfut_lr_v4_parent_runs` | Run metadata (run_id, symbol, asset_id, status, hashes) |
+| `winfut_lr_v4_timeframe_runs` | Timeframe runs (candle_count, indicator_count, structure_count) |
+| `winfut_lr_v4_status_history` | Status transitions audit trail |
+| `winfut_lr_v4_chunks` | Chunk tracking (chunk_number, first/last candle, status) |
+| `winfut_lr_v4_checkpoints` | Checkpoint state (state_hash, content_hash, chunk_id FK) |
+| `winfut_lr_v4_indicators` | Indicator emissions (15 RSI-HA features + 7 basic indicators) |
+| `winfut_lr_v4_reconciliation` | Reconciliation residuals per chunk |
+| `winfut_lr_v4_validations` | Validation results per chunk |
+| `winfut_lr_v4_errors` | Error log per run/chunk |
+| `winfut_lr_v4_artifacts` | Artifacts (reports, hashes, metadata) |
+| `winfut_lr_v4_active_runs` | Active run tracking |
+| `winfut_lr_v4_structures` | SMC structures (FVG, OB, BOS/CHOCH, etc.) |
+| `winfut_lr_v4_structure_events` | Structure lifecycle events |
+| `winfut_lr_v4_opportunities` | Opportunity signals |
+| `winfut_lr_v4_opportunity_evidence` | Opportunity evidence |
+| `winfut_lr_v4_outcomes` | Trade outcomes |
+| `winfut_lr_v4_trade_events` | Trade events |
+| `winfut_lr_v4_trade_simulations` | Trade simulations |
+
 ---
 
 ## 7. API Endpoints (FastAPI :8008)
@@ -1014,11 +1111,12 @@ probabilidade_proibida=True     → "Taxa historica de alcance", nunca "probabil
 
 ---
 
-## 9. Metricas (2026-06-20)
+## 9. Metricas (2026-06-28)
 
 | Metrica | Valor |
 |---------|-------|
 | Testes Python total | 2522 passed, 3 failed (preexistentes), 3 skipped |
+| Testes V4 Live-Replay | 80 passed (51 foundation + 29 V4_04 repositories/RSI-HA/checkpoint) |
 | Testes Laravel (S24) | 33 escritos (PHP indisponivel) |
 | Ativos | 6 (WINFUT, WDOFUT, PETR4, VALE3, XAUUSDm, BTCUSDm) |
 | Robos de coleta | 2 (run_b3.py, run_forex.py) |
@@ -1107,6 +1205,37 @@ SMC_Trader_System_7_0/            ← raiz do workspace (5 repos GitHub + 1 scri
 │                                   Branch: feature/phase6-candidate-c-nested-walk-forward
 ├── technical_engine/           ← motor tecnico completo
 │   ├── smc_engine_v2/          STABLE_FROZEN_V2 (164 testes)
+│   ├── live_replay_v4/         Live-Replay V4 (80 testes, 18 tabelas winfut_lr_v4_*)
+│   │   ├── candle_clock.py     CandleClock + CandleRef + CandleAvailability
+│   │   ├── contracts.py        CanonicalTimeframe, IndicatorEmission, IndicatorSnapshot
+│   │   ├── config.py           LiveReplayV4Config, ENGINE_VERSION, SCHEMA_VERSION
+│   │   ├── hashing.py          deterministic_hash, compute_state_hash, compute_content_hash
+│   │   ├── identity.py         Structure identity + causal timestamps
+│   │   ├── state.py            SerializableState with versioned restore
+│   │   ├── exceptions.py       18 exceptions (CausalContract, HashConflict, RepositoryScope, etc.)
+│   │   ├── validation.py       Foundation + indicator validation
+│   │   ├── schema.py           Schema definition + validate_schema
+│   │   ├── checkpoint.py       CheckpointService (create, load, validate)
+│   │   ├── cli.py              CLI: schema-validate, transaction-probe, foundation-validate
+│   │   ├── dry_run_d1.py       Dry-run D1 (250 candles, no writes)
+│   │   ├── persist_sample_d1.py First persistence D1 (1743 indicators, INVALIDATED)
+│   │   ├── persistence/
+│   │   │   ├── allowlist.py    V4_TABLE_ALLOWLIST (18 tables)
+│   │   │   ├── connection.py   get_connection (autocommit=False)
+│   │   │   ├── repositories.py 11 repositories (Parent, Timeframe, Chunk, Indicator, etc.)
+│   │   │   ├── transactions.py ChunkTransactionService + chunk_transaction
+│   │   │   ├── mappings.py     indicator_to_row mapping
+│   │   │   └── reconciliation.py Reconciliation helpers
+│   │   └── indicators/
+│   │       ├── engine.py       IncrementalIndicatorEngine
+│   │       ├── registry.py     IndicatorRegistry (7 basic + RSI-HA)
+│   │       ├── true_range.py   TRUE_RANGE
+│   │       ├── range_metrics.py RANGE
+│   │       ├── ema.py          EMA20, EMA200
+│   │       ├── rsi.py          RSI14
+│   │       ├── atr.py          ATR14
+│   │       ├── volatility.py   VOLATILITY_BUCKET
+│   │       └── rsi_heikin_ashi.py RSI_HEIKIN_ASHI_V1 (15 features, warm-up 31)
 │   ├── study_gateway/          Study + Risk Management + Forward (123 testes)
 │   ├── opportunity_scanner/    Scanner S1-S21 (306 testes)
 │   ├── elliott/                Elliott Wave context + sanity
@@ -1125,6 +1254,7 @@ SMC_Trader_System_7_0/            ← raiz do workspace (5 repos GitHub + 1 scri
 │                               config_manager.py, robot_singleton.py, robot_health.py
 ├── systemd/                    Servicos systemd ativos (10 servicos)
 ├── tests/                      Suite de testes (2522+ testes)
+│   ├── live_replay_v4/         80 testes V4 (foundation + repositories + RSI-HA + checkpoint)
 ├── tools/                      Scripts de auditoria e execucao
 ├── scripts/                    Scripts operacionais e diagnostico
 ├── deploy/                     Scripts de deploy
@@ -1133,6 +1263,7 @@ SMC_Trader_System_7_0/            ← raiz do workspace (5 repos GitHub + 1 scri
 ├── database/                   Migrations SQL (shadow tables)
 ├── migrations/                 Migrations Python (shadow tables)
 ├── storage/                    Storage ativo
+│   └── live_replay_v4/         V4 artifacts (initial_state, dry_run, persisted_sample, gate)
 ├── runtime/                    Logs e snapshots do motor
 ├── backups/                    Backups de codigo
 ├── mt5_connection.py           Dual-port RPyC bridge B3:11000/Forex:11001
@@ -1331,6 +1462,13 @@ MT5Backup/                      ← Repo: AndreRambo/smc-mt5-infra (main)
 | DB ticker vs scanner symbol (Forex) | 2026-06-09 | DB usa "GOLD (XAUUSD)"/"BTCUSD" como ticker mas persist/watcher operam por asset_id numerico — transparente ao scanner que usa "XAUUSDm"/"BTCUSDm". |
 | smc_trader_system symlink | 2026-06-09 | /home/bimaq/projetos/smc_trader_system → SMC_Trader_System_7_0/SMC_Trader_System 7.0 (symlink). Servicos system-level e user-level apontam para o mesmo diretorio. |
 | Fix timezone freshness V2 pipeline | 2026-06-09 | sync_v2.py: freshness check comparava latest_candle (BRT) com created_at (CEST) — diferenca de 5h fazia needs_pipeline=False sempre. Fix: comparar com parameters_json.latest_candle_time (mesmo BRT). Robos B3/Forex reiniciados. |
+| Live-Replay V4 isolamento namespace | 2026-06-27 | 18 tabelas `winfut_lr_v4_*` no mesmo banco, mas isoladas por namespace. Nenhuma tabela legada alterada. Branch dedicada `feature/winfut-causal-live-replay-v4`. |
+| Allowlist imutavel de tabelas | 2026-06-27 | V4_TABLE_ALLOWLIST (frozenset) — todo repository valida contra a lista. CandleSourceRepository read-only para market_candles. Rejeita qualquer tabela fora do namespace. |
+| Repositories sem commit interno | 2026-06-27 | Todos os repositories recebem connection/cursor externo, nunca executam commit/rollback. ChunkTransactionService gerencia a transação. |
+| ChunkTransactionService 13 passos | 2026-06-27 | Valida parent_run → timeframe_run → chunk BUILDING → persist indicators → reconciliation → hash validation → checkpoint → validations → chunk COMPLETED → update counts → append history. 9 pontos de fault injection. |
+| Checkpoint atômico | 2026-06-27 | Checkpoint só é gravado após reconciliação e validação de hashes. State hash validado no load. Versão obrigatória. Restore rejeita hash divergente. |
+| RSI_HEIKIN_ASHI_V1 | 2026-06-27 | 15 features contínuas + 3 textuais. Pipeline: EMA3 → RSI Wilder 14 → Heikin Ashi no espaço RSI → OHLC4 → EMA14 sinal. Warm-up 31 candles. Sem intrabar, sem futuro. |
+| Primeira persistência controlada | 2026-06-27 | Run D1 com 250 candles → 1743 emissões → 35 chunks → 1 checkpoint. Status final INVALIDATED (INTEGRATION_PROBE_COMPLETE). Nenhum run ACTIVE. |
 | Fix uirevision chart zoom | 2026-06-09 | figure_builder.py: uirevision fixo preservava zoom antigo — novos candles ficavam fora da tela. Fix: incluir ultimo candle no uirevision para resetar ao chegarem dados novos. |
 | Fix timeframe alias persistence | 2026-06-09 | persistence.py load_latest_smc_engine_v2_state: query exata WHERE timeframe='M15' nao encontrava runs salvos com '15min'. Fix: IN (%s, %s) com alias map M5↔5min, M15↔15min, etc. |
 | Fix timestamps FVG/OB/zonas SMC | 2026-06-09 | sync_v2.py chamava run_smc_engine_v2_local() sem timestamps= — todos origin_at/display_from/display_to ficavam NULL em raw_json. Resultado: figure_builder nao conseguia posicionar zonas no eixo X e nao renderizava nenhum retangulo. Fix: salvar ts_series = pd.Series(ohlc['timestamp'].values) antes do drop(columns=['timestamp']) e passar timestamps=ts_series ao pipeline. persistence.py: FvgV2/ObV2 reconstruidos do raw_json agora incluem display_from/display_to/mitigated_at; candles carregados ANTES da geracao de visual_overlays (era pos — ohlc_for_overlay ficava vazio). |
