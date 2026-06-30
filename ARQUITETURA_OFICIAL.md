@@ -1102,7 +1102,8 @@ scan_once(persist=False)
 - **R2 — Integridade de persistência (PASS, MySQL=PARTIAL):** `INSERT OR IGNORE` eliminado → SELECT→INSERT | IDEMPOTENT_MATCH | `PersistenceConflictError`. `PRAGMA foreign_keys=ON`. Backfill usa `write_tick_atomic()` (SAVEPOINT por tick). MySQL staging não validado (sem driver no ambiente).
 - **R3 — Unificação do Opportunity Engine (PASS):** backtest deixa de usar evaluator simplificado; passa pelo `opportunity_scanner` canônico via adapter. `opportunity_scanner/*` intocado.
 - **OB subtype parity:** `ob_subtype` (NORMAL/REJECTION/STACKED) portado batch→incremental, gravado no `payload` do OB (struct_id estável; TIER 2 confluência diferido no incremental). Decisão de rename `BREAKER`→`STACKED` (2026-06-30) para evitar colisão semântica com breaker-block clássico (`ZONE_TYPE_BREAKER`).
-- **R4 — Shadow runtime real + rollback** e **R5 — Soak/replay final + decisão de cutover:** ainda não autorizados.
+- **R4 — Shadow runtime real + rollback (PASS):** `shadow_runtime.py` injeta o engine incremental após cada persist batch; flag `SMC_V2_INCREMENTAL_SHADOW=true`; SQLite local (nunca MySQL produção); RESTART_CONTINUITY via checkpoint; ROLLBACK = desligar flag; ZERO_SHADOW_ORDERS garantido por código. 17 testes de gate passando (2026-06-30).
+- **R5 — Soak/replay final + decisão de cutover:** ainda não autorizado.
 
 **Guardrails permanentes:** nenhuma zona ativa removida por limite de quantidade; `EXPIRED` só por regra de domínio causal/versionada; conflito de persistência nunca silencioso; cutover só após MySQL staging + shadow runtime real + rollback pós-restart.
 
