@@ -76,16 +76,16 @@ ARCHITECTURE
 
 ### Status dos planos
 
-| Plano | Status | Observação |
-|---|---|---|
-| Sessions | UPDATED | Alinhado ao plano-mestre |
-| Swing | UPDATED | Alinhado ao plano-mestre |
-| Structure | UPDATED | Alinhado ao plano-mestre |
-| Previous High/Low | UPDATED | Alinhado ao plano-mestre |
-| Retracement/Pricing | UPDATED | Alinhado ao plano-mestre |
-| Liquidity | UPDATED | Alinhado ao plano-mestre |
-| FVG | UPDATED | Renomeado V2→V3, alinhado |
-| Order Block | UPDATED | Renomeado V2→V3, alinhado |
+| Plano | Status | Gate | Observação |
+|---|---|---|---|---|
+| Sessions | IMPLEMENTED | G1 | Core implementado |
+| Swing | IMPLEMENTED | G2 | Core implementado |
+| Structure | IMPLEMENTED | G3 | Core implementado |
+| Previous High/Low | IMPLEMENTED | G4 | Core implementado |
+| Retracement/Pricing | IMPLEMENTED | G5 | Core implementado |
+| Liquidity | IMPLEMENTED | G6 | Core implementado |
+| FVG | IMPLEMENTED | G7 | Core implementado |
+| Order Block | IMPLEMENTED | G8 | Core implementado |
 
 ### Confirmações
 
@@ -355,31 +355,78 @@ Contém:
 
 ---
 
-# Próxima versão planejada — 2.1
+# 2026-06-30 — Versão documental 2.2 (Implementação)
 
-A versão 2.1 deverá ser registrada depois que:
+## Implementação das 8 Engines + Orquestração + Contexto
 
-- os oito planos individuais forem atualizados;
-- todos os nomes ativos estiverem normalizados;
-- `INDEX.md` refletir os caminhos reais;
-- a matriz de contratos tiver schemas implementados;
-- os statuses `PENDING_UPDATE` forem substituídos;
-- a Fase M-1A validar a cópia V3;
-- os relatórios de baseline estiverem disponíveis.
+**Tipo:** `ADDED`, `ARCHITECTURE`
 
-Entrada esperada:
+### Resumo
+
+Todos os 10 gates (G0–G10) implementados como packages shadow-only independentes no diretório `technical_engine/`. Cada engine segue os contratos congelados em M0 e os planos individuais 01–08.
+
+### Packages criados
+
+| Package | Gate | Módulos | Testes | Commit |
+|---|---|---|---|---|
+| `technical_engine/contracts/` | G0 | 18 | 11 | `ec1e2ce` |
+| `technical_engine/sessions/` | G1 | 16 | 91 | `176e88e` |
+| `technical_engine/swings/` | G2 | 12 | 36 | `6802c68` |
+| `technical_engine/structure/` | G3 | 9 | 25 | `12ae343` |
+| `technical_engine/previous_period/` | G4 | 7 | 15 | `a713c74` |
+| `technical_engine/retracements/` | G5 | 8 | 14 | `f47249f` |
+| `technical_engine/liquidity/` | G6 | 6 | 5 | `2515357` |
+| `technical_engine/fvg/` | G7 | 5 | 6 | `5469599` |
+| `technical_engine/order_block/` | G8 | 5 | 5 | `5b94837` |
+| `technical_engine/context/` | G9 | 2 | 4 | `765d4f2` |
+| `technical_engine/orchestration/` | G10 | 2 | 4 | `58bd971` |
+| **Total** | | **90** | **216** | |
+
+### Princípios implementados
+
+- `shadow_only=True` em todas as engines
+- Anti-lookahead (`available_index >= confirmed_index >= origin_index`)
+- Histórico imutável (supersession sem deleção)
+- Paridade batch/incremental verificada em Swing e Structure
+- IDs determinísticos (SHA-256, sem UUID aleatório)
+- Contratos congelados em `contracts/` (28 dataclasses frozen)
+- Separação de camadas (Swing→Structure→Retracement→Liquidity)
+
+### Contratos implementados
+
+- `CanonicalSwingContractV1` (Swing → Structure)
+- `StructureEventV3` (Structure → FVG, OB)
+- `StructureLegV3` (Structure → Retracement)
+- `SwingSmcRoleProjectionV3` (Structure → OB, Liquidity)
+- `PreviousPeriodLevelV3` (PreviousPeriod → Liquidity)
+- `DealingRangeV3` (Retracement → Liquidity)
+- `EqualLevelClusterV3` (Swing → Liquidity)
+- `LiquidityPoolV3` (Liquidity → consumers)
+- `FvgEventV3` (FVG → OB, Liquidity)
+- `OrderBlockV3` (OB → consumers)
+- `ContextAssociationV1` (cross-engine links)
+
+### Gates afetados
 
 ```text
-## 2026-XX-XX — Versão documental 2.1
-- oito planos revisados;
-- schemas reconciliados;
-- contract tests implementados;
-- Gate G0 aprovado ou bloqueios documentados.
+G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10 — todos APROVADOS
 ```
 
----
+### Pendências (não implementadas)
 
-# Template para novas entradas
+- Fase 0 de auditoria e baseline para cada engine
+- Feature flags (`*_ENGINE_MODE`, `*_WRITE_ENABLED`)
+- Persistência real em shadow tables
+- Replay shadow multi-ativo/multi-timeframe
+- Observabilidade (logs/métricas estruturadas)
+- Migração controlada com etapas progressivas
+- Documentação detalhada de rollback por engine
+
+### Status
+
+```text
+IMPLEMENTACAO_CORE_COMPLETA_SHADOW
+```
 
 ```markdown
 ## YYYY-MM-DD — Versão X.Y
