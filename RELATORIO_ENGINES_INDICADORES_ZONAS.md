@@ -1,8 +1,8 @@
 # Relatório: Engines, Indicadores, Zonas e Tabelas — SMC Trader System 7.0
 
-> Gerado: 2026-06-27 | Fonte: `ARQUITETURA_OFICIAL.md` + código fonte
+> Gerado: 2026-06-27 | Atualizado: 2026-06-30 | Fonte: `ARQUITETURA_OFICIAL.md` + código fonte
 > Base path: `/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/`
-> Total: **85 tabelas shadow** + 1 file store
+> Total: **85 tabelas shadow** (produção) + 1 file store + **6 tabelas staging incremental** (pré-cutover, NÃO em produção — ver §3.11) + proposta Volume Profile (POC/VA) documentada em §3.12 (não implementada)
 
 ---
 
@@ -151,6 +151,15 @@
 | origin_candle_id | BIGINT NULL |
 | confirmation_candle_id | BIGINT NULL |
 | payload_hash | VARCHAR(128) NULL |
+
+> **Enriquecimento OB (2026-06-30, NTSL parity):** os campos `ob_subtype`
+> (`NORMAL`|`REJECTION`|`STACKED`), `structure_confirmed` e `liquidity_aligned`
+> trafegam dentro de `raw_json` — **nenhuma migração DDL** foi necessária
+> (`persistence.py` grava o registro inteiro em `raw_json`). Coluna SQL dedicada
+> é opcional (apenas se filtro em SQL for desejado). Classificação aditiva: não
+> altera detecção, `quality_label`/`quality_score` ou contagem de OBs.
+> Decisão de rename `BREAKER`→`STACKED` (2026-06-30) para evitar colisão semântica
+> com breaker-block clássico SMC (`ZONE_TYPE_BREAKER`, `signal_candidate_v1 S4_BREAKER`).
 
 ### 3.4 `technical_engine_smc_v2_bos_choch_shadow`
 
@@ -324,6 +333,101 @@
 | raw_json | JSON NOT NULL |
 | shadow_only | TINYINT(1) NOT NULL DEFAULT 1 |
 | created_at | DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP |
+
+### 3.11 SMC Engine V2 Incremental — schema staging (pré-cutover)
+
+**Diretório:** `technical_engine/smc_engine_v2/incremental/persistence/`
+**Migration MySQL:** `migrations/20260629_smc_v2_incremental_schema.sql`
+**Status:** **NÃO em produção.** Branch `feature/smc-v2-incremental-unified`. Engine única (live+replay+backtest) que substituirá o pipeline batch por cutover controlado. MySQL staging ainda não validado (R2 = PARTIAL, sem driver no ambiente). Ver `ARQUITETURA_OFICIAL.md` §4.10.
+
+Schema com IDs SHA-256 determinísticos, escrita atômica por tick (SAVEPOINT), FK com `ON DELETE CASCADE`, e detecção de conflito (mesmo ID + payload diferente → `PersistenceConflictError`; nunca `INSERT OR IGNORE`):
+
+| Tabela | Conteúdo | Chave |
+|--------|----------|-------|
+| `smc_v2_engine_runs` | um registro por run de backfill/live | `run_id` (PK) |
+| `smc_v2_structures` | `StructureEmission` (append-only) — inclui `ob_subtype` no `payload_json` | `structure_id` (PK, FK→runs) |
+| `smc_v2_structure_events` | `StructureEventEmission` (lifecycle AVAILABLE→TOUCHED→PARTIALLY_FILLED→MITIGATED) | `event_id` (PK, FK→runs, FK→structures) |
+| `smc_v2_checkpoints` | snapshots completos da engine (JSON) | `checkpoint_id` (PK, FK→runs) |
+| `smc_v2_active_stream_versions` | ponteiro de run ativo por (asset_id, timeframe) | `UNIQUE(asset_id, timeframe)` |
+| `smc_v2_reconciliation` | log de auditoria órfãos/residual | `id` (PK) |
+
+> **Nota OB subtype no incremental:** `ob_subtype` (NORMAL/REJECTION/STACKED) é
+> gravado em `smc_v2_structures.payload_json` (não em coluna dedicada), mantendo o
+> `structure_id` estável. TIER 2 (`structure_confirmed`/`liquidity_aligned`) está
+> diferido no incremental — exige orquestração de confluência cross-component.
+> Rename `BREAKER`→`STACKED` aplicado em batch e incremental (2026-06-30).
+
+#### R3 — Integração Opportunity Engine (staging)
+
+O backtest do engine incremental não usa mais um evaluator simplificado. Através do `ReplayOpportunityAdapter`, ele traduz `StructureEmission + CandleEnvelope` → `PersistedOperationalPlanRef + LatestPriceRef` e chama `evaluate_opportunity()` canônico (o mesmo de produção).
+
+**Tradução V2 → Canônico:**
+
+| Campo Canônico | Fonte V2 |
+|----------------|----------|
+| direction | BULLISH→ALTISTA, BEARISH→BAIXISTA |
+| entrada | midpoint da zona |
+| stop | zone_bottom − zone_size×0.2 (bull) |
+| tp1/tp2/tp3 | entry + risk × R:R (1.5/3.0/5.0) |
+| readiness | hardcoded PRONTO |
+| now | candle.available_at (histórico) |
+
+**Gates bypassados em replay:** has_operation, htf_aligned, market_closed, plan_age, price_age (não aplicáveis a dados históricos).
+
+**Gates ativos em replay:** causal guard (available_at), approach side, zone degenerate, ATR validation, proximidade.
+
+O `CanonicalOpportunityBacktester` roda o loop completo: processa candles → avalia zonas → emite decisões → simula intrabar (stop antes de TP) → compute stats (expectancy, PF, drawdown).
+
+---
+
+### 3.12 Volume Profile (POC/VA) — Proposta (NÃO-IMPLEMENTADO)
+
+> **Status: PROPOSTA. Não implementado. Aditivo e OFF por default quando implementado. Nenhuma DDL, nenhuma migração. Não altera detecção nem calibração WINFUT_M5.**
+
+**Objetivo:** POC, VAH/VAL, HVN e LVN como camada de confluência sobre SMC, Wyckoff e Elliott. Nenhum dado de volume profile é gravado em coluna dedicada — os campos (proposto) viajam em `raw_json` / `payload_json`, igual ao `ob_subtype`.
+
+**Definições:**
+
+| Conceito | Descrição |
+|----------|-----------|
+| POC | Preço com maior volume negociado no perfil do período |
+| VA (Value Area) | Faixa de ~70% do volume; VAH = topo, VAL = fundo. `Percentual_VA` é parametrizável (NTSL usa 40%; padrão de mercado 70%) |
+| HVN | Alto volume → aceitação/equilíbrio |
+| LVN | Baixo volume → rejeição/movimento rápido |
+| Naked POC | POC de sessão anterior nunca retocado → ímã de preço |
+
+**Regras de confluência (proposta):**
+
+| Módulo | Regra | Tipo |
+|--------|-------|------|
+| SMC | OB + HVN → boost `quality_score` (+10 a +15 pts, param.) | Filtro/ponderação |
+| SMC | FVG → POC/HVN como alvo de take-profit | Alvo |
+| SMC | OB/FVG sobre LVN → possível penalidade leve (default 0) | Filtro opcional |
+| SMC | Naked POC → alvo magnético TP | Alvo |
+| Wyckoff | POC = região de "cause" → contexto de fase | Contexto |
+| Wyckoff | LVN → spring/upthrust rápidos → flag de contexto | Contexto |
+| Elliott | POC/VA → alvo de ondas corretivas (B, 2, 4) | Alvo |
+| Elliott | Naked POC → alvo de extensão impulsiva | Alvo |
+
+**(proposto) Campos no payload OB/FVG** — sem DDL, gravados em `payload_json`:
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| (proposto) `poc_aligned` | bool | OB/FVG coincide com POC/HVN |
+| (proposto) `volume_node` | str | `"HVN"` \| `"LVN"` \| `"NEUTRAL"` |
+| (proposto) `nearest_poc` | float | Preço do POC mais próximo |
+| (proposto) `dist_to_poc_atr` | float | Distância ao POC em ATRs |
+
+**(proposto) Config flags:**
+- `enable_volume_profile_confluence: bool = False` (OFF por default)
+- `va_percent: float = 0.70` (parametrizável; NTSL usa 0.40)
+- `hvn_quality_boost: float = 12.0`
+- `lvn_quality_penalty: float = 0.0` (default neutro)
+- `poc_target_priority: bool = True`
+
+**(proposto) Componente incremental:** `incremental/components/volume_profile.py` — calcula HistogramaVolume por candle (tick approximation), POC, VAH, VAL, HVN/LVN. Espelha lógica do indicador NTSL de referência (ApplyTZ, naked/virgin POC do dia anterior). Causal: usa apenas candles com `available_at <= candle atual`.
+
+**Hipótese a validar:** combinação POC/HVN com OBs existentes como hipótese de melhoria de seletividade — a ser verificada por backtest A/B em shadow-only antes de qualquer claim de performance.
 
 ---
 
@@ -673,6 +777,85 @@
 | scanner_version | VARCHAR(32) NULL |
 | metadata | JSON NULL |
 | created_at | DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP |
+
+### 7.5 Conceitual — Como o Opportunity Scanner funciona
+
+#### Pipeline completo (produção)
+
+```
+MT5 candle (M1) → run_b3.py → TRIGGER 4
+  → run_smc_engine_v2_local() → FVG/OB/BOS/Liq/BPR/Swings/PDH/Sessions/Ret
+  → run_ew_pipeline_and_persist() → Elliott + Wyckoff
+  → Confluence V2 → TechnicalTruthEnvelopeV2
+  → Risk Management V2 → OperationalPlanV2 (M5)
+  → OpportunityScanner.scan_once()
+       → load_latest_price(M1) + load_latest_plan(M5)
+       → evaluate_opportunity(plan, price, config)
+       → 12 gates determinísticos (ver §4.4.1 do ARQUITETURA_OFICIAL.md)
+       → proximity: NA_ZONA/IMINENTE/PROXIMO/OBSERVANDO/DISTANTE
+       → dedup (15min window)
+       → persist signal + alert + notify (WebSocket + HTTP POST HMAC)
+       → maximustrade.com.br → FCM push
+```
+
+#### 12 Gates do Evaluator
+
+| # | Gate | Motivo de bloqueio |
+|---|------|--------------------|
+| 1 | Stop Invalidated by Window (S18K) | candle M1 cruzou stop antes da entrada |
+| 2 | Plan Not Active | plano não está ACTIVE |
+| 3 | Readiness Not Allowed | readiness fora do permitido |
+| 4 | No Operation | plano sem operação |
+| 5 | Missing Entry | plano sem entrada definida |
+| 6 | Missing/Invalid ATR | ATR ausente ou ≤ 0 |
+| 7 | Market Closed (S18B) | B3 fora de 09–18h BRT |
+| 8 | Plan Too Old (S18E) | plano com candle fechado há >10min |
+| 9 | Price Too Old (S18E) | preço M1 fechado há >3min |
+| 10 | Contra HTF | plano contra o viés HTF |
+| 11 | Stop Invalidated (S18J) | candle low≤stop ou high≥stop |
+| 12 | Wrong Approach (S18F) | preço do lado errado da entrada |
+
+#### Proximidade e Severidade
+
+| Proximity | Distância (ATR) | Severity | trigger_state | allowed |
+|-----------|----------------|----------|---------------|---------|
+| NA_ZONA | candle toca entrada | CRITICAL | IN_ZONE | True |
+| IMINENTE | ≤ 1.0 ATR | HIGH | ARMED | True |
+| PROXIMO | ≤ 2.0 ATR | MEDIUM | ARMED | True |
+| OBSERVANDO | ≤ 3.0 ATR | LOW | WATCHING | True |
+| DISTANTE | > 3.0 ATR | NONE | WAITING | False |
+
+#### Evidence Bundle (28 campos)
+
+O `OpportunityEvidenceBundleV1` documenta TODA a evidência por trás de cada decisão:
+
+| Categoria | Sub-modelos | Conteúdo |
+|-----------|-------------|----------|
+| Identificação | AssetRef, TimeframeRef, TimingRef | ativo, timeframes, timestamps |
+| Decisão | DecisionRef, LevelsRef, RiskRef | direção, entrada/stop/TP, R:R, sizing |
+| Fontes | InputRefs, EngineVersions | run_ids de SMC/Elliott/Wyckoff/Contextual |
+| Segurança | Guardrails | shadow_only, anti_lookahead, can_promote_trade |
+| Zonas | ZonesRef (fvg[], ob[], bpr[], liquidity[]) | zonas SMC envolvidas na decisão |
+| Estruturas | StructureRef (bos_choch[], swings[]) | estruturas de suporte |
+| Evidências | evidences (smc, structure, contextual) | itens individuais com source_ref |
+| Narrativa | Narrative | smc/elliott/wyckoff/risk_explanation |
+| Métricas | HitRates | taxa histórica, expectancy |
+
+Bundle hasheado via SHA-256 → `bundle_hash` imutável.
+
+#### Lifecycle — 17 Estados
+
+```
+DETECTED → EVIDENCE_PENDING → EVIDENCE_READY → NOTIFICATION_PENDING → NOTIFIED
+  → OPENED → WATCHING → ENTRY_TOUCHED → ENTRY_CONFIRMED
+    → TP1_REACHED → TP2_REACHED → TP3_REACHED ◄ terminal
+    → STOP_REACHED ◄ terminal
+  → INVALIDATED ◄ terminal
+  → EXPIRED ◄ terminal
+  → CANCELLED ◄ terminal
+```
+
+18 transições válidas. Estados terminais (sem saída): TP3, STOP, INVALIDATED, EXPIRED, CANCELLED. Guard é lookup table — regras de negócio enforced pelo caller.
 
 ---
 
