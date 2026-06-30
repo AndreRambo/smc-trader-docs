@@ -427,7 +427,9 @@ G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10 — todos APROVADOS
 ### Status
 
 ```text
-IMPLEMENTACAO_COMPLETA_SHADOW — G0-G10 aprovados
+CANONICAL_V3 — Cutover semântico executado. Todas as engines em modo v3.
+Aprovado por: Operador (sessao 2026-06-30)
+Data do cutover: 2026-06-30T18:26:17Z
 ```
 
 ```markdown
