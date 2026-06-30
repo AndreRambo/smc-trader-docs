@@ -380,7 +380,8 @@ Todos os 10 gates (G0–G10) implementados como packages shadow-only independent
 | `technical_engine/order_block/` | G8 | 5 | 5 | `5b94837` |
 | `technical_engine/context/` | G9 | 2 | 4 | `765d4f2` |
 | `technical_engine/orchestration/` | G10 | 2 | 4 | `58bd971` |
-| **Total** | | **90** | **216** | |
+| `technical_engine/integration/` | G9 | 4 | 13 | `76527f4` |
+| **Total** | | **94** | **229** | |
 
 ### Princípios implementados
 
