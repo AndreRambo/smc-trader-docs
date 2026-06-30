@@ -1,0 +1,2046 @@
+PLANO-MESTRE DE ORQUESTRAÇÃO DAS 8 ENGINES SMC
+SMC TRADER SYSTEM 7.0
+Arquivo de execução global, contratos cross-engine e resolução de dependências
+
+Versão do documento: 1.0
+Modo operacional: SHADOW-ONLY
+Escopo: Sessions, Previous Period High/Low, Swing, Structure, Retracement/Pricing,
+Liquidity, Fair Value Gap e Order Block
+Objetivo: transformar os oito planos individuais em um programa único, executável,
+versionado e livre de dependências circulares reais.
+
+================================================================================
+1. AUTORIDADE DESTE DOCUMENTO
+================================================================================
+
+Este plano-mestre passa a ser a referência superior para:
+
+1. ordem global de implementação;
+2. ownership dos contratos compartilhados;
+3. nomenclatura canônica de campos;
+4. regras de integração entre produtores e consumidores;
+5. resolução de dependências circulares aparentes;
+6. gates de promoção entre fases;
+7. versionamento dos schemas;
+8. testes de contrato e integração;
+9. rollout shadow das oito engines.
+
+Hierarquia documental obrigatória:
+
+NÍVEL 1 — Este plano-mestre
+NÍVEL 2 — Contratos canônicos compartilhados e ADRs
+NÍVEL 3 — Planos operacionais individuais das engines
+NÍVEL 4 — Implementação, migrations, testes e relatórios
+NÍVEL 5 — Adaptadores legados V2
+
+Quando existir divergência entre um plano individual e este documento:
+
+- prevalece este plano-mestre para integração cross-engine;
+- o comportamento interno específico permanece governado pelo plano individual;
+- a divergência deve gerar ADR e atualização documental;
+- nenhuma IA de código pode resolver a divergência silenciosamente.
+
+================================================================================
+2. PLANOS COBERTOS
+================================================================================
+
+Este documento orquestra:
+
+1. Sessions & Market Calendar Engine V3
+2. Previous Period Levels / Previous High-Low Engine V3
+3. Swing Engine V3
+4. Structure Engine V3
+5. Retracement & Pricing Engine V3
+6. Liquidity Engine V3
+7. Fair Value Gap Engine
+8. Order Block Engine
+
+Nomenclatura-alvo recomendada:
+
+- Engines estruturais novas: V3
+- FVG e OB: manter compatibilidade nominal com V2 durante a migração, mas criar
+  contratos canônicos de schema V3.
+- O nome da classe/schema e a versão da implementação devem ser independentes.
+  Exemplo:
+    engine_version = "fvg-engine-2.1.0"
+    schema_version = "fvg-event/3.0.0"
+
+================================================================================
+3. GRAFO GLOBAL DE DEPENDÊNCIAS
+================================================================================
+
+3.1. Grafo lógico canônico
+
+SHARED CONTRACT KERNEL
+          |
+          v
+SESSIONS & MARKET CALENDAR V3
+          |
+          +------------------------------+
+          |                              |
+          v                              v
+SWING CORE V3                        PREVIOUS PERIOD V3
+(Raw Pivot -> Canonical ->           (PDH/PDL/PWH/PWL)
+ HH/HL/LH/LL/EQH/EQL)                       |
+          |                                  |
+          v                                  |
+STRUCTURE V3                                 |
+(BOS/CHOCH, Structure Leg,                   |
+ Protected/Weak, Trend State)                |
+          |                                  |
+          +---------------+------------------+
+                          |
+              +-----------+-----------+
+              |                       |
+              v                       v
+RETRACEMENT/PRICING V3          LIQUIDITY V3 CORE
+(DealingRangeV3)                (Equal/Structure/
+              |                 Previous-Period Pools)
+              +-----------+-----------+
+                          |
+                          v
+                  LIQUIDITY V3 ERL/IRL
+                          |
+              +-----------+-----------+
+              |                       |
+              v                       v
+        FVG GEOMETRIC/           ORDER BLOCK
+        DISPLACEMENT CORE        STRUCTURAL CORE
+              |                       |
+              +-----------+-----------+
+                          |
+                          v
+             CONTEXT ASSOCIATION / ENRICHMENT
+                          |
+                          v
+                SHADOW REPLAY INTEGRADO
+
+3.2. Dependências estritas
+
+Sessions V3:
+- não depende das demais engines SMC;
+- depende apenas do feed temporal, calendário e configuração de mercado.
+
+Swing Core V3, camadas 1 a 3:
+- depende de candles, Sessions/continuity metadata, ATR e price tick;
+- não depende de Structure.
+
+Structure V3:
+- depende de CanonicalSwingContract;
+- não depende da camada 4 de papéis SMC do Swing;
+- produz BOS, CHOCH, StructureLeg, protected/weak e trend state.
+
+Swing camada 4:
+- não é um segundo detector;
+- é uma projeção de papéis SMC produzida pela Structure;
+- não deve escrever de volta alterando a identidade do swing.
+
+Previous Period V3:
+- depende de Sessions/TradingPeriodProvider;
+- não depende de Swing ou Structure.
+
+Retracement V3:
+- depende de Swing Core e Structure;
+- é a fonte canônica de DealingRangeV3.
+
+Liquidity V3:
+- depende de Swing, Structure e Previous Period;
+- para ERL/IRL, depende também de DealingRangeV3;
+- não deve recriar o dealing range.
+
+FVG:
+- o detector geométrico puro depende apenas de candles validados e continuity metadata;
+- classificação displacement/contextual depende de Structure, Swing e Liquidity;
+- associação com OB é enriquecimento posterior, não dependência de criação.
+
+Order Block:
+- depende de Structure, Swing e Liquidity;
+- pode consumir FVG geométrico/displacement como evidência;
+- não pode depender de um FVG já enriquecido com o próprio OB.
+
+3.3. Dependências opcionais ou de enriquecimento
+
+São links opcionais, preenchidos depois da criação canônica:
+
+- FVG.source_ob_id
+- RetracementEvent.ob_id
+- RetracementEvent.fvg_id
+- RetracementEvent.liquidity_id
+- OB.fvg_ids
+- Liquidity.shift_event_id
+- MTF parent IDs
+- higher_timeframe_context_id
+
+Esses campos:
+
+- são nullable;
+- não participam do ID determinístico primário;
+- não alteram retroativamente a validade geométrica ou estrutural;
+- são atualizados por projeção/association service;
+- não podem criar ciclos de inicialização.
+
+================================================================================
+4. ORDEM GLOBAL OBRIGATÓRIA DE IMPLEMENTAÇÃO
+================================================================================
+
+FASE M0 — KERNEL DE CONTRATOS COMPARTILHADOS
+Antes de qualquer reescrita funcional.
+
+FASE M1 — SESSIONS & MARKET CALENDAR V3
+Raiz temporal do sistema.
+
+FASE M2 — SWING CORE V3, CAMADAS 1 A 3
+Raw Pivot, Canonical Swing, locking, supersession, HH/HL/LH/LL/EQH/EQL.
+
+FASE M3 — STRUCTURE V3 + PROJEÇÃO SMC DO SWING
+SwingAvailabilityAdapter, Structure State, BOS/CHOCH, StructureLeg,
+protected/weak e SwingSmcRoleProjection.
+
+FASE M4 — PREVIOUS PERIOD LEVELS V3
+Consome Sessions V3 e publica níveis de períodos anteriores.
+
+FASE M5 — RETRACEMENT/PRICING V3 CORE
+Resolve StructureLeg -> DealingRangeV3 e Premium/Equilibrium/Discount.
+
+FASE M6 — LIQUIDITY V3 EM SUBFASES
+M6-A: promover EqualLevelCluster geométrico em pool.
+M6-B: criar pools de StructureLevel e PreviousPeriodLevel.
+M6-C: classificar ERL/IRL usando DealingRangeV3.
+M6-D: lifecycle de touch/sweep/close-through/reclaim/shift.
+
+FASE M7 — FVG CORE
+M7-A: detecção geométrica pura.
+M7-B: displacement e associação com StructureLeg/Liquidity.
+M7-C: lifecycle e overlays.
+
+FASE M8 — ORDER BLOCK CORE
+Origem do impulso, evento estrutural, zona, freshness e lifecycle.
+Pode consumir FVG M7-B como evidência, sem exigir vínculo OB no FVG.
+
+FASE M9 — CONTEXT ASSOCIATION SERVICE
+Cria links bidirecionais não autoritativos:
+OB <-> FVG, OB/FVG <-> DealingRange, OB/FVG <-> Liquidity.
+
+FASE M10 — INTEGRAÇÃO, REPLAY, DASHBOARD E GATES FINAIS
+Executa paridade batch/stream, replay truncado, shadow e relatórios.
+
+4.1. Paralelismo permitido
+
+Após M1:
+- M2 Swing Core e M4 Previous Period podem ser desenvolvidos em paralelo.
+- M7-A FVG geométrico pode ser desenvolvido em paralelo, mas não ser aceito como
+  contextual/final antes de M3 e M6.
+- migrations e overlays podem ser preparados em paralelo depois do freeze de schema.
+
+4.2. Paralelismo proibido
+
+Não iniciar:
+
+- Structure state machine antes do contrato CanonicalSwing congelado;
+- ERL/IRL antes de DealingRangeV3;
+- Liquidity EQH/EQL re-detection independente do EqualLevelCluster;
+- OB contextual antes de StructureLeg e StructureEvent estáveis;
+- FVG contextual antes de StructureEvent/StructureLeg;
+- ContextAssociationService antes dos IDs determinísticos de OB e FVG.
+
+================================================================================
+5. RESOLUÇÃO FORMAL DA DEPENDÊNCIA SWING <-> STRUCTURE
+================================================================================
+
+5.1. O ciclo aparente
+
+Swing declara papéis:
+
+- PROTECTED_HIGH
+- PROTECTED_LOW
+- WEAK_HIGH
+- WEAK_LOW
+
+Structure consome swings para produzir:
+
+- BOS
+- CHOCH
+- trend state
+- protected/weak levels
+
+5.2. Resolução em camadas
+
+CAMADA A — SWING CORE, AUTÔNOMA
+Produz:
+
+- RawPivotV3
+- CanonicalSwingV3
+- SwingRevisionV3
+- EqualLevelClusterV3
+- HH/HL/LH/LL/EQH/EQL
+- available_index
+
+CAMADA B — STRUCTURE
+Consome CanonicalSwingContract e produz:
+
+- StructureLevelV3
+- StructureStateV3
+- StructureEventV3
+- StructureLegV3
+- SwingSmcRoleProjectionV3
+
+CAMADA C — READ MODEL DO SWING
+O dashboard ou consumidor pode exibir:
+
+- swing canônico;
+- classificação HH/HL/LH/LL;
+- papel SMC atribuído pela Structure.
+
+A camada C não altera o registro canônico de Swing.
+
+5.3. Regra de ownership
+
+Swing é dono da geometria e da sequência de pivôs.
+
+Structure é dona de:
+
+- protected/weak;
+- BOS/CHOCH;
+- trend state;
+- StructureLeg;
+- confirmação estrutural.
+
+5.4. Contrato de retorno
+
+Criar:
+
+SwingSmcRoleProjectionV3
+- projection_id
+- swing_id
+- structure_level_id
+- role
+- status
+- assigned_by_event_id
+- confirmed_index
+- confirmed_at
+- available_index
+- available_at
+- superseded_by_projection_id
+- engine_version
+- schema_version
+- config_hash
+
+Não adicionar `is_protected=True` diretamente ao registro histórico do swing como
+fonte primária. Esse campo poderá existir apenas em view materializada.
+
+================================================================================
+6. RESOLUÇÃO DO CONFLITO DE NOMES SWING -> STRUCTURE
+================================================================================
+
+6.1. Decisão canônica
+
+O contrato público entre as engines será:
+
+CanonicalSwingContractV1
+
+Campos obrigatórios:
+
+identity
+- swing_id
+- source_pivot_id
+- asset_id
+- symbol
+- timeframe
+- scope
+
+classification
+- high_low
+- swing_kind
+- structural_classification
+- status
+- detection_method
+
+price
+- price
+- price_tick
+
+temporal
+- origin_index
+- origin_at
+- confirmed_index
+- confirmed_at
+- available_index
+- available_at
+- earliest_execution_index
+- earliest_execution_at
+
+window
+- left_bars
+- right_bars
+
+quality
+- strength
+- prominence_atr
+- distance_from_previous_ticks
+- distance_from_previous_atr
+- leg_bars
+
+relationships
+- previous_opposite_swing_id
+- parent_swing_id
+- parent_leg_id
+- equal_level_cluster_id
+
+continuity
+- continuity_status
+- is_cross_session
+- is_data_gap_affected
+- is_rollover_affected
+
+audit
+- schema_version
+- engine_version
+- config_hash
+- source_data_version
+- run_id
+- replay_id
+- raw
+
+6.2. Mapeamento campo a campo
+
+Swing RawPivotV3 / CanonicalSwingV3
+-> CanonicalSwingContractV1
+-> Structure SwingPoint adapter
+
+swing_id
+-> swing_id
+-> swing_id
+
+pivot_id
+-> source_pivot_id
+-> source_pivot_id
+
+asset
+-> asset_id
+-> asset_id
+
+timeframe
+-> timeframe
+-> timeframe
+
+scope
+-> scope
+-> scope
+
+high_low
+-> high_low
+-> high_low
+
+swing_type
+-> swing_kind
+-> swing_kind
+
+HH/HL/LH/LL/EQH/EQL
+-> structural_classification
+-> structural_classification
+
+pivot_confirmed_index
+-> confirmed_index
+-> confirmed_index
+
+pivot_confirmed_at
+-> confirmed_at
+-> confirmed_at
+
+available_index
+-> available_index
+-> available_index
+
+available_at
+-> available_at
+-> available_at
+
+earliest_execution_index
+-> earliest_execution_index
+-> earliest_execution_index
+
+earliest_execution_at
+-> earliest_execution_at
+-> earliest_execution_at
+
+origin_index
+-> origin_index
+-> origin_index
+
+origin_at
+-> origin_at
+-> origin_at
+
+price
+-> price
+-> price
+
+left_bars
+-> left_bars
+-> left_bars
+
+right_bars
+-> right_bars
+-> right_bars
+
+prominence_atr
+-> prominence_atr
+-> strength input opcional
+
+status
+-> status
+-> is_valid derivado
+
+engine_version
+-> engine_version
+-> source_version
+
+config_hash
+-> config_hash
+-> config_hash
+
+6.3. `swing_type` e `method` NÃO são o mesmo conceito
+
+Decisão obrigatória:
+
+- `swing_type` será renomeado no contrato para `swing_kind`.
+  Exemplos: CANONICAL_HIGH, CANONICAL_LOW.
+
+- `method` será renomeado para `detection_method`.
+  Exemplos: FRACTAL_WINDOW, ZIGZAG_RESOLUTION, LEG_LOCK.
+
+É proibido mapear `swing_type` diretamente para `method`.
+
+6.4. `confirmed_index` como nome público
+
+Dentro da Swing Engine, `pivot_confirmed_index` pode permanecer por clareza.
+
+No contrato público:
+
+- `confirmed_index` é o nome canônico;
+- `confirmation_kind = FRACTAL` informa o significado;
+- Structure pode criar outra confirmação em outro objeto, sem sobrescrever a do swing.
+
+6.5. `Level` versus `price`
+
+- contratos V3 usam `price`;
+- `Level` é campo legacy;
+- adaptador V2 mapeia `Level -> price`;
+- nenhum contrato V3 novo deve usar `Level` como nome genérico.
+
+================================================================================
+7. SCHEMA TEMPORAL CANÔNICO
+================================================================================
+
+7.1. Definições
+
+origin_index / origin_at
+- local histórico onde a geometria nasceu;
+- não implica conhecimento operacional.
+
+confirmed_index / confirmed_at
+- candle e instante em que os critérios da entidade foram satisfeitos.
+
+available_index / available_at
+- primeiro instante em que a entidade foi publicada para consumidores.
+
+earliest_execution_index / earliest_execution_at
+- primeiro instante em que uma estratégia poderia agir conforme a semântica do motor.
+
+event_index / event_at
+- candle do acontecimento específico.
+
+break_index / break_at
+- candle de rompimento estrutural.
+
+completed_at
+- instante em que um período/sessão foi fechado e congelado.
+
+7.2. Invariantes globais
+
+Para toda entidade:
+
+origin_index <= confirmed_index <= available_index <= earliest_execution_index
+
+Exceção:
+- algumas entidades não possuem origin geométrico.
+- usar campo nullable, nunca valor artificial.
+
+Para toda entidade derivada:
+
+derived.available_index >= max(dependency.available_index)
+
+Para execução no próximo candle:
+
+earliest_execution_index = available_index + 1
+
+Quando o motor suporta publicação e execução comprovadas no fechamento:
+
+earliest_execution_index pode ser igual a available_index,
+mas a configuração deve registrar execution_semantics.
+
+7.3. Timestamps
+
+- todos os `_at` persistidos em UTC, timezone-aware;
+- timezone local é metadado separado;
+- formato RFC3339;
+- índices são relativos a `stream_id`;
+- não comparar índices entre streams/timeframes diferentes.
+
+7.4. Identidade da barra
+
+Criar BarReferenceV1:
+
+- stream_id
+- asset_id
+- timeframe
+- candle_index
+- open_at
+- close_at
+- source_bar_id
+- contract_id
+- session_instance_ids
+
+================================================================================
+8. ENVELOPE COMPARTILHADO DE IDENTIDADE E AUDITORIA
+================================================================================
+
+Todo contrato persistido deve conter:
+
+- entity_id ou event_id determinístico
+- schema_name
+- schema_version
+- engine_name
+- engine_version
+- detector_version, quando aplicável
+- asset_id
+- symbol
+- timeframe
+- scope, quando aplicável
+- config_hash
+- source_data_version
+- stream_id
+- run_id
+- replay_id
+- created_at
+- updated_at
+- raw
+- evidence
+- guardrails
+
+8.1. Regras de ID
+
+IDs devem ser determinísticos para o mesmo dataset/configuração.
+
+Não usar UUID aleatório como identidade natural do mesmo evento.
+
+Exemplos de natural key:
+
+session_instance_id:
+hash(calendar_id, definition_id, trading_date, version)
+
+swing_id:
+hash(asset_id, timeframe, scope, origin_at, normalized_price,
+     detection_method, detector_version)
+
+structure_event_id:
+hash(asset_id, timeframe, scope, event_type, broken_level_id, break_at,
+     detector_version)
+
+equal_level_cluster_id:
+hash(sorted(member_swing_ids), cluster_type, detector_version)
+
+previous_period_level_id:
+hash(reference_period_id, observation_period_id, level_kind)
+
+dealing_range_id:
+hash(origin_swing_id, endpoint_swing_id, range_type, structure_event_id)
+
+liquidity_id:
+hash(source_type, source_entity_id(s), liquidity_side, scope, detector_version)
+
+fvg_id:
+hash(asset_id, timeframe, direction, pattern_start_at, pattern_end_at,
+     bottom_ticks, top_ticks, detector_version)
+
+order_block_id:
+hash(structure_event_id, origin_at, zone_definition, bottom_ticks, top_ticks,
+     detector_version)
+
+================================================================================
+9. ENUMS E GLOSSÁRIO CANÔNICOS
+================================================================================
+
+9.1. Direction
+
+Persistência canônica:
+
+BULLISH
+BEARISH
+NEUTRAL
+
+Labels de apresentação:
+
+ALTISTA
+BAIXISTA
+NEUTRO
+
+Não persistir idiomas diferentes como enum principal.
+
+9.2. Scope
+
+INTERNAL
+SWING
+
+9.3. Liquidity side
+
+BSL
+SSL
+
+Não usar `bullish liquidity` como sinônimo de BSL.
+
+9.4. Continuity
+
+CONTINUOUS
+SESSION_BOUNDARY
+DATA_GAP
+ROLLOVER
+CONTRACT_CHANGE
+PARTIAL_START
+PARTIAL_END
+UNKNOWN
+
+9.5. Event status base
+
+CANDIDATE
+FORMING
+CONFIRMED
+ACTIVE
+SUPERSEDED
+INVALIDATED
+EXPIRED
+COMPLETED
+AMBIGUOUS
+
+Cada domínio pode possuir estados adicionais, mas não redefinir significados.
+
+9.6. Guardrails
+
+shadow_only
+can_promote_trade
+apply_automatically
+llm_decision_used
+production_truth_replaced
+is_lookahead_safe
+
+================================================================================
+10. OWNERSHIP DOS CONTRATOS
+================================================================================
+
+10.1. Sessions é dona de
+
+- MarketCalendarDayV3
+- SessionDefinitionV3
+- SessionInstanceV3
+- SessionCandleMembershipV3
+- PeriodInstanceV3
+- PeriodCompletedEventV3
+- TradingPeriodSummaryV3
+
+10.2. Previous Period é dona de
+
+- PreviousPeriodLevelV3
+- PreviousPeriodLevelEventV3
+- PreviousPeriodEngineStateV3
+
+Não deve possuir uma segunda definição concorrente de período concluído.
+O antigo `CompletedPeriodV3` do plano Previous Period deve ser:
+
+- substituído por TradingPeriodSummaryV3 de Sessions; ou
+- mantido como alias/read model sem ownership próprio.
+
+10.3. Swing é dona de
+
+- RawPivotV3
+- CanonicalSwingV3
+- SwingRevisionV3
+- EqualLevelClusterV3
+- SwingEngineStateV3
+
+10.4. Structure é dona de
+
+- StructureLevelV3
+- StructureStateV3
+- StructureEventV3
+- StructureLegV3
+- SwingSmcRoleProjectionV3
+
+10.5. Retracement/Pricing é dona de
+
+- DealingRangeV3
+- RetracementSampleV3
+- RetracementEventV3
+- RangeRevisionV3
+- RetracementEngineStateV3
+
+10.6. Liquidity é dona de
+
+- LiquidityPoolV3
+- LiquidityPoolMemberV3
+- LiquidityEventV3
+- LiquidityEngineStateV3
+
+O `DealingRangeV3` reduzido definido no plano Liquidity deve ser removido.
+Liquidity consome o DealingRangeV3 canônico de Retracement.
+
+10.7. FVG é dona de
+
+- FvgEventV3
+- FvgLifecycleEventV3
+- FvgGroupProjectionV3
+- FvgEngineStateV3
+
+10.8. Order Block é dona de
+
+- OrderBlockV3
+- OrderBlockLifecycleEventV3
+- OrderBlockRefinementV3
+- OrderBlockEngineStateV3
+
+10.9. Association service é dono de
+
+- ContextAssociationV1
+- EntityRelationshipV1
+- ContextEnrichmentProjectionV1
+
+Não é dono das entidades vinculadas.
+
+================================================================================
+11. MAPA DE CONTRATOS ENTRE AS ENGINES
+================================================================================
+
+11.1. Sessions -> Previous Period
+
+PRODUTOR: Sessions
+CONTRATO: TradingPeriodSummaryV3
+CONSUMIDOR: PreviousPeriodLevelResolver
+
+Mapeamento:
+
+period_instance_id
+-> reference_period_id
+
+period_type
+-> period_type
+
+trading_date
+-> reference_trading_date
+
+scheduled_start
+-> reference_period_start
+
+scheduled_end
+-> reference_period_end
+
+completed_at
+-> reference_period_completed_at
+
+high
+-> previous_high / level price para HIGH
+
+low
+-> previous_low / level price para LOW
+
+first_candle_index
+-> reference_first_candle_index
+
+last_candle_index
+-> reference_last_candle_index
+
+available_index
+-> reference_period_available_index
+
+is_complete
+-> is_reference_period_complete
+
+continuity_status
+-> continuity_status
+
+is_data_gap_affected
+-> is_data_gap_affected
+
+is_rollover_affected
+-> is_rollover_affected
+
+calendar_id/version
+-> calendar lineage
+
+Regra:
+Previous Period não re-resampleia candles quando existe TradingPeriodSummaryV3.
+
+11.2. Swing -> Structure
+
+PRODUTOR: Swing
+CONTRATO: CanonicalSwingContractV1
+CONSUMIDOR: SwingAvailabilityAdapter/Structure
+
+Mapeamento definido integralmente na seção 6.
+
+Gate:
+- status aceito configurável;
+- padrão inicial: CANONICAL ou LOCKED;
+- `available_index` obrigatório;
+- `price` alinhado ao tick;
+- scope obrigatório.
+
+11.3. Structure -> Swing role read model
+
+PRODUTOR: Structure
+CONTRATO: SwingSmcRoleProjectionV3
+CONSUMIDORES: dashboards, OB, Retracement, Liquidity
+
+Mapeamento:
+
+swing_id
+-> swing_id
+
+StructureLevel.level_id
+-> structure_level_id
+
+StructureLevel.level_type
+-> role
+
+StructureEvent.event_id
+-> assigned_by_event_id
+
+StructureLevel.confirmed_index
+-> confirmed_index
+
+StructureLevel.available_index
+-> available_index
+
+Não alterar CanonicalSwingV3.
+
+11.4. Swing EqualLevelCluster -> Liquidity
+
+PRODUTOR: Swing
+CONTRATO: EqualLevelClusterV3
+CONSUMIDOR: EqualLevelLiquidityPromoter
+
+Mapeamento:
+
+cluster_id
+-> source_cluster_id
+
+cluster_type = EQH
+-> liquidity_side = BSL
+
+cluster_type = EQL
+-> liquidity_side = SSL
+
+member_swing_ids
+-> member_swing_ids
+
+price_min
+-> price_min
+
+price_max
+-> price_max
+
+price_mean
+-> mean_price
+
+EQH outer boundary
+-> max(member prices)
+
+EQL outer boundary
+-> min(member prices)
+
+available_index
+-> source_available_index
+
+available_at
+-> source_available_at
+
+scope
+-> scope
+
+status
+-> source_status
+
+Regra de fonte da verdade:
+- Swing decide membership geométrico de EQH/EQL.
+- Liquidity não reexecuta clustering concorrente.
+- Liquidity promove o cluster, atribui BSL/SSL, role, range type e lifecycle.
+- parâmetros geométricos de igualdade pertencem ao Swing.
+- buffers de sweep e lifecycle pertencem à Liquidity.
+
+O componente `EqualLevelLiquidityDetector` deve ser renomeado para:
+
+EqualLevelLiquidityPromoter
+
+ou operar estritamente como adapter/validator do cluster recebido.
+
+11.5. Structure -> Retracement
+
+PRODUTORES:
+- StructureLegV3
+- StructureEventV3
+- StructureLevelV3
+- StructureStateV3
+
+CONSUMIDOR:
+- DealingRangeResolver
+
+Mapeamento:
+
+StructureLeg.leg_id
+-> impulse_leg_id
+
+StructureLeg.origin_swing_id
+-> origin_swing_id
+
+StructureLeg.endpoint_swing_id
+-> endpoint_swing_id
+
+StructureLeg.direction
+-> impulse_direction
+
+StructureLeg.scope
+-> scope
+
+StructureLeg.available_index
+-> structural_leg_available_index
+
+StructureEvent.event_id
+-> structure_event_id
+
+StructureLevel protected ID
+-> protected_level_id
+
+StructureLevel weak ID
+-> weak_level_id
+
+Gate:
+DealingRange.available_index >= max de todos os insumos usados.
+
+11.6. Retracement -> Liquidity
+
+PRODUTOR: Retracement/Pricing
+CONTRATO: DealingRangeV3
+CONSUMIDOR: RangeLiquidityClassifier
+
+Mapeamento:
+
+dealing_range_id
+-> dealing_range_id
+
+top
+-> range_high
+
+bottom
+-> range_low
+
+equilibrium
+-> equilibrium
+
+origin_swing_id
+-> range_origin_swing_id
+
+endpoint_swing_id
+-> range_endpoint_swing_id
+
+range_available_index
+-> source_available_index
+
+status
+-> source_range_status
+
+scope
+-> scope
+
+structure_event_id
+-> parent_structure_event_id
+
+Uso:
+- classificar ERL/IRL;
+- posicionar pool no range;
+- não recalcular o range.
+
+11.7. Previous Period -> Liquidity
+
+PRODUTOR: PreviousPeriodLevelV3
+CONSUMIDOR: PreviousPeriodLiquidityPromoter
+
+Mapeamento:
+
+level_id
+-> source_level_id
+
+level_kind HIGH
+-> liquidity_side BSL
+
+level_kind LOW
+-> liquidity_side SSL
+
+price
+-> representative_price e outer_boundary
+
+available_index
+-> source_available_index
+
+status
+-> source_status
+
+reference_period_id
+-> source_period_id
+
+event IDs
+-> liquidity source event references
+
+Regra:
+Previous Period detecta o comportamento do nível no seu domínio.
+Liquidity cria o pool/contexto unificado.
+A deduplicação de eventos deve usar source event ID para não duplicar sweep.
+
+11.8. Sessions -> Liquidity
+
+SessionInstance final high/low pode originar:
+
+SESSION_HIGH -> BSL
+SESSION_LOW -> SSL
+
+Somente após a disponibilidade definida para esse tipo de pool.
+
+11.9. Structure/Swing/Retracement/Liquidity -> FVG
+
+FVG geométrico:
+- não depende desses contratos.
+
+FVG contextual recebe:
+
+CanonicalSwing.swing_id
+-> origin_swing_id, quando comprovado
+
+StructureLeg.leg_id
+-> impulse_leg_id
+
+StructureEvent.event_id
+-> structure_event_id
+
+LiquidityEvent.event_id
+-> liquidity_event_id
+
+DealingRange.dealing_range_id
+-> dealing_range_id
+
+Pricing zone
+-> premium_discount_position
+
+Regras:
+- associação por causalidade e direção;
+- não apenas por janela temporal;
+- dependency.available_index <= FVG contextual classification available_index.
+
+11.10. Structure/Swing/Liquidity/Retracement/FVG -> Order Block
+
+Order Block recebe:
+
+StructureEvent.event_id
+-> structure_event_id
+
+StructureLeg.leg_id
+-> impulse_leg_id
+
+CanonicalSwing.swing_id
+-> origin_swing_id / broken_swing_id
+
+StructureLevel protected/weak IDs
+-> protected_level_id / weak_level_id
+
+LiquidityEvent.event_id
+-> liquidity_event_id / sweep_event_id
+
+DealingRange.dealing_range_id
+-> dealing_range_id
+
+FvgEvent.fvg_id
+-> evidence_fvg_ids
+
+FVG é evidência opcional para validade/qualidade conforme configuração.
+O OB não pode exigir FVG que só se torna contextual após o próprio OB.
+
+11.11. OB <-> FVG
+
+Conflito potencial:
+- OB deseja consumir FVG.
+- FVG possui source_ob_id.
+
+Resolução:
+
+ETAPA 1 — FVG canônico
+Criado sem source_ob_id obrigatório.
+
+ETAPA 2 — OB canônico
+Pode consumir FVG já confirmado como evidência.
+
+ETAPA 3 — Association Service
+Cria relação:
+  relationship_type = ORIGINATES_FROM_OB
+  from_entity_id = fvg_id
+  to_entity_id = order_block_id
+
+A associação pode aparecer em uma view enriquecida, mas não altera:
+
+- fvg_id;
+- ob_id;
+- confirmed_index original;
+- validade histórica;
+- score calculado em instante anterior sem revisão versionada.
+
+================================================================================
+12. RESOLUÇÃO DOS TRÊS CONFLITOS PRINCIPAIS
+================================================================================
+
+12.1. CONFLITO 1 — nomes Swing -> Structure
+
+Problema:
+- `pivot_confirmed_index` versus `confirmed_index`;
+- `swing_type` versus `method`;
+- `asset` versus `asset_id`;
+- `Level` versus `price`.
+
+Resolução:
+- criar CanonicalSwingContractV1;
+- usar `confirmed_index` no contrato público;
+- manter `pivot_confirmed_index` apenas internamente;
+- separar `swing_kind` de `detection_method`;
+- usar `asset_id` como identidade e `symbol` como apresentação;
+- usar `price`, nunca `Level`, em V3;
+- cobrir o adapter com contract tests.
+
+12.2. CONFLITO 2 — ausência de plano-mestre e schema comum
+
+Problema:
+- oito cronogramas locais sem uma ordem global;
+- mesmos conceitos redefinidos;
+- risco de implementar consumidor antes do produtor estável.
+
+Resolução:
+- este documento define a ordem global;
+- criar pacote `technical_engine/contracts`;
+- congelar schemas antes das engines;
+- criar ownership matrix;
+- introduzir compatibility matrix;
+- bloquear merge se contract tests falharem;
+- toda engine deve declarar `consumes_schema` e `produces_schema`.
+
+12.3. CONFLITO 3 — dupla origem de EQH/EQL
+
+Problema:
+- Swing cria EqualLevelClusterV3;
+- Liquidity também planeja detectar EQH/EQL.
+
+Resolução:
+- Swing é fonte da verdade geométrica;
+- Liquidity é fonte da verdade do pool e lifecycle;
+- remover detector concorrente;
+- Liquidity usa promoter/adapter;
+- ajustes de membership retornam como proposta ao Swing, não alteração local;
+- um cluster possui um único `cluster_id`;
+- um pool referencia esse `cluster_id`.
+
+================================================================================
+13. CONFLITOS ADICIONAIS RESOLVIDOS
+================================================================================
+
+13.1. DealingRangeV3 duplicado
+
+- ownership exclusivo: Retracement/Pricing.
+- Liquidity remove seu modelo reduzido e consome o contrato canônico.
+
+13.2. CompletedPeriodV3 duplicado
+
+- ownership do período concluído: Sessions/TradingPeriodProvider.
+- Previous Period consome o summary.
+
+13.3. OB/FVG circular
+
+- criação canônica desacoplada;
+- associação posterior por ContextAssociationService.
+
+13.4. Protected/weak duplicado no Swing e Structure
+
+- ownership: Structure;
+- Swing recebe somente projeção de leitura.
+
+13.5. Direction enum inconsistente
+
+- persistência em inglês canônico;
+- tradução somente na camada de apresentação.
+
+13.6. `session_id` inconsistente
+
+Usar:
+
+- `session_definition_id` para o template;
+- `session_instance_id` para a ocorrência;
+- `session_id` genérico fica proibido nos novos contratos.
+
+13.7. `structure_kind` versus `scope`
+
+Usar:
+
+- `scope = INTERNAL | SWING`.
+
+`structure_kind` fica deprecado.
+
+13.8. `break_kind` versus `event_type`
+
+StructureEvent:
+
+- `event_type = BOS | CHOCH | REVERSAL_CONFIRMED | ...`
+
+OB/FVG podem copiar o valor em:
+
+- `source_structure_event_type`
+
+Não criar enum concorrente.
+
+================================================================================
+14. STRUCTURELEG V3 — CONTRATO QUE FALTAVA
+================================================================================
+
+A maioria das engines usa `impulse_leg_id`, mas nenhum plano o define como
+contrato completo. Criar obrigatoriamente:
+
+StructureLegV3
+
+Campos:
+
+- leg_id
+- asset_id
+- symbol
+- timeframe
+- scope
+- direction
+- status
+
+- origin_swing_id
+- endpoint_swing_id
+- broken_level_id
+- structure_event_id
+- parent_leg_id
+
+- origin_index
+- origin_at
+- origin_available_index
+- origin_available_at
+
+- endpoint_index
+- endpoint_at
+- endpoint_available_index
+- endpoint_available_at
+
+- confirmed_index
+- confirmed_at
+- available_index
+- available_at
+- earliest_execution_index
+- earliest_execution_at
+
+- high
+- low
+- range_points
+- range_ticks
+- range_atr
+- bar_count
+
+- displacement_score
+- fvg_ids
+- liquidity_event_ids
+
+- continuity_status
+- is_cross_session
+- is_data_gap_affected
+- is_rollover_affected
+
+- schema_version
+- engine_version
+- config_hash
+- source_data_version
+- run_id
+- replay_id
+- raw
+- evidence
+
+Ownership:
+Structure Engine V3.
+
+Consumidores:
+Retracement, OB, FVG e Liquidity contextual.
+
+================================================================================
+15. PACOTE DE CONTRATOS COMPARTILHADOS
+================================================================================
+
+Criar antes das engines:
+
+technical_engine/contracts/
+  __init__.py
+  base_envelope.py
+  temporal.py
+  identity.py
+  enums.py
+  guardrails.py
+  bar_reference.py
+  session_contracts.py
+  period_contracts.py
+  swing_contracts.py
+  structure_contracts.py
+  retracement_contracts.py
+  liquidity_contracts.py
+  fvg_contracts.py
+  order_block_contracts.py
+  association_contracts.py
+  schema_registry.py
+  compatibility_matrix.py
+
+Schemas serializáveis:
+
+schemas/
+  bar-reference-v1.json
+  canonical-swing-v1.json
+  structure-event-v3.json
+  structure-leg-v3.json
+  previous-period-level-v3.json
+  dealing-range-v3.json
+  liquidity-pool-v3.json
+  fvg-event-v3.json
+  order-block-v3.json
+  context-association-v1.json
+
+15.1. Regras
+
+- contratos não importam implementações das engines;
+- engines importam contratos;
+- contratos não executam lógica de mercado;
+- enums compartilhados vivem no kernel;
+- adapters legacy ficam fora do kernel;
+- migrations devem referenciar schema version.
+
+================================================================================
+16. EVENT BUS / PIPELINE INCREMENTAL
+================================================================================
+
+Tópicos canônicos sugeridos:
+
+market.session.scheduled
+market.session.started
+market.session.completed
+market.period.completed
+
+smc.swing.pivot_confirmed
+smc.swing.canonical_available
+smc.swing.equal_cluster_available
+
+smc.structure.event_confirmed
+smc.structure.leg_available
+smc.structure.role_assigned
+
+smc.previous_period.level_available
+smc.previous_period.level_event
+
+smc.retracement.range_available
+smc.retracement.event
+
+smc.liquidity.pool_available
+smc.liquidity.event
+
+smc.fvg.confirmed
+smc.fvg.lifecycle_event
+
+smc.order_block.confirmed
+smc.order_block.lifecycle_event
+
+smc.context.association_updated
+
+16.1. EventEnvelopeV1
+
+- message_id
+- topic
+- entity_id
+- event_type
+- schema_name
+- schema_version
+- producer_engine
+- producer_version
+- occurred_at
+- available_at
+- stream_id
+- sequence_number
+- correlation_id
+- causation_id
+- run_id
+- replay_id
+- payload_hash
+- payload
+
+16.2. Ordenação
+
+- ordering garantido por stream_id;
+- consumidor idempotente por message_id;
+- sequence_number monotônico;
+- evento fora de ordem vai para quarantine/retry;
+- nenhuma engine consulta o futuro para reparar evento atrasado.
+
+================================================================================
+17. COMPATIBILITY MATRIX
+================================================================================
+
+Criar arquivo versionado:
+
+docs/contracts/CONTRACT_COMPATIBILITY_MATRIX.md
+
+Formato:
+
+Producer
+Produced schema
+Producer version
+Consumer
+Minimum schema
+Maximum tested schema
+Adapter
+Status
+
+Exemplo:
+
+Swing Engine
+canonical-swing/1.0
+3.0.0
+Structure Engine
+1.0
+1.x
+SwingAvailabilityAdapterV1
+APPROVED_SHADOW
+
+17.1. Política de versão
+
+PATCH:
+- correção sem mudança de contrato.
+
+MINOR:
+- campo opcional adicionado;
+- consumidor antigo continua funcionando.
+
+MAJOR:
+- rename;
+- remoção;
+- mudança semântica;
+- mudança de enum;
+- requer adapter/migration.
+
+Nenhuma alteração breaking sem:
+
+- schema major novo;
+- migration;
+- adapter;
+- testes de contrato;
+- atualização deste plano.
+
+================================================================================
+18. GATES GLOBAIS ENTRE FASES
+================================================================================
+
+GATE G0 — CONTRACT FREEZE
+Exige:
+
+- ownership aprovado;
+- enums compartilhados;
+- schema temporal;
+- IDs determinísticos;
+- adapters planejados;
+- contract tests skeleton.
+
+GATE G1 — SESSIONS READY
+Exige:
+
+- timezone/DST;
+- calendar version;
+- PeriodInstance;
+- completion event;
+- batch/stream parity;
+- partial/gap/rollover flags.
+
+GATE G2 — SWING CORE READY
+Exige:
+
+- raw/canonical;
+- available_index;
+- supersession sem apagar;
+- EqualLevelCluster;
+- internal/swing;
+- batch/stream parity.
+
+GATE G3 — STRUCTURE READY
+Exige:
+
+- CanonicalSwing adapter;
+- StructureLevel;
+- StructureState;
+- StructureEvent;
+- StructureLeg;
+- role projection;
+- anti-lookahead.
+
+GATE G4 — PREVIOUS PERIOD READY
+Exige:
+
+- consumo de PeriodSummary;
+- níveis disponíveis causalmente;
+- wick/close/gap separados;
+- IDs estáveis.
+
+GATE G5 — DEALING RANGE READY
+Exige:
+
+- StructureLeg consumption;
+- range availability;
+- Premium/EQ/Discount;
+- revision sem repaint.
+
+GATE G6 — LIQUIDITY READY
+Exige:
+
+- EQH/EQL promoter;
+- structure/previous-period pools;
+- ERL/IRL;
+- lifecycle;
+- deduplicação.
+
+GATE G7 — FVG CORE READY
+Exige:
+
+- geometria;
+- confirmação candle 3;
+- continuity;
+- lifecycle;
+- contextual links causais.
+
+GATE G8 — OB CORE READY
+Exige:
+
+- structure event;
+- structure leg;
+- liquidity;
+- origem/freshness;
+- lifecycle;
+- FVG evidence opcional.
+
+GATE G9 — INTEGRATION READY
+Exige:
+
+- association service;
+- full replay;
+- truncation tests;
+- no lookahead;
+- dashboard comparativo;
+- rollback.
+
+Nenhuma fase pode consumir um schema ainda não aprovado no gate anterior.
+
+================================================================================
+19. TESTES CROSS-ENGINE OBRIGATÓRIOS
+================================================================================
+
+19.1. Contract tests
+
+Para cada par produtor/consumidor:
+
+- schema válido;
+- campos obrigatórios;
+- enum compatível;
+- timestamps timezone-aware;
+- invariantes temporais;
+- campos desconhecidos tolerados conforme versão;
+- adapter legacy testado.
+
+19.2. Anti-lookahead end-to-end
+
+Cenário truncado:
+
+1. executar até candle N;
+2. persistir resultados;
+3. anexar N+1...M;
+4. verificar que entidades já confirmadas não mudam, exceto lifecycle/revisão explícita;
+5. verificar que nenhuma entidade aparece antes do available_index.
+
+19.3. Batch versus streaming
+
+Para o mesmo dataset e config:
+
+- IDs iguais;
+- eventos iguais;
+- ordem igual;
+- estados iguais;
+- revisões iguais;
+- associações iguais.
+
+19.4. Cenário integrado mínimo
+
+Construir fixture com:
+
+- sessão válida;
+- período anterior completo;
+- PDH/PDL;
+- raw pivots;
+- canonical swings;
+- EQH;
+- sweep de liquidez;
+- CHOCH/BOS;
+- StructureLeg;
+- dealing range;
+- FVG;
+- Order Block;
+- reteste e lifecycle.
+
+19.5. Testes específicos dos conflitos
+
+- pivot_confirmed_index adaptado para confirmed_index;
+- swing_kind separado de detection_method;
+- um EqualLevelCluster gera exatamente um pool primário;
+- Liquidity não reagrupa membros;
+- DealingRange tem um único produtor;
+- OB/FVG associação não altera IDs;
+- Swing role projection não altera CanonicalSwing.
+
+19.6. Referential integrity
+
+- todo foreign ID resolve;
+- referência opcional pode ser nula;
+- referência obrigatória não pode apontar para entidade futura;
+- entidade superseded permanece resolvível.
+
+================================================================================
+20. MIGRAÇÃO E FEATURE FLAGS
+================================================================================
+
+Flags globais:
+
+SMC_V3_CONTRACTS_ENABLED
+SMC_V3_EVENT_BUS_ENABLED
+SMC_V3_WRITE_ENABLED
+SMC_V3_OVERLAY_ENABLED
+SMC_V3_SIGNAL_ENABLED
+
+Flags por engine:
+
+SESSIONS_ENGINE_MODE
+SWING_ENGINE_MODE
+STRUCTURE_ENGINE_MODE
+PREVIOUS_PERIOD_ENGINE_MODE
+RETRACEMENT_ENGINE_MODE
+LIQUIDITY_ENGINE_MODE
+FVG_ENGINE_MODE
+ORDER_BLOCK_ENGINE_MODE
+
+Valores:
+
+legacy
+shadow_v3
+v3
+
+Guardrail global inicial:
+
+SMC_V3_SIGNAL_ENABLED=false
+SMC_V3_WRITE_ENABLED=false para produção oficial
+shadow_only=true
+can_promote_trade=false
+apply_automatically=false
+llm_decision_used=false
+production_truth_replaced=false
+
+20.1. Rollout
+
+PASSO 1:
+contratos e adapters sem mudança funcional.
+
+PASSO 2:
+engines V3 escrevem em storage separado.
+
+PASSO 3:
+dashboard comparativo.
+
+PASSO 4:
+consumo cross-engine somente em shadow.
+
+PASSO 5:
+replay e soak test.
+
+PASSO 6:
+aprovação humana por gate.
+
+PASSO 7:
+promoção futura, fora do escopo deste plano.
+
+================================================================================
+21. ESTRUTURA DE REPOSITÓRIO RECOMENDADA
+================================================================================
+
+technical_engine/
+  contracts/
+  sessions/
+  swings/
+  structure/
+  previous_period/
+  retracements/
+  liquidity/
+  fvg/
+  order_blocks/
+  associations/
+  adapters/
+    legacy_v2/
+  orchestration/
+    dependency_graph.py
+    gate_runner.py
+    schema_registry.py
+    replay_orchestrator.py
+    shadow_pipeline.py
+
+tests/
+  contracts/
+  cross_engine/
+  orchestration/
+  sessions_v3/
+  swings_v3/
+  structure_v3/
+  previous_period_v3/
+  retracements_v3/
+  liquidity_v3/
+  fvg_v3/
+  order_blocks_v3/
+
+docs/
+  contracts/
+  architecture/
+  migrations/
+  operations/
+  reports/
+  adr/
+
+================================================================================
+22. ADRs OBRIGATÓRIOS
+================================================================================
+
+Criar:
+
+ADR-001-SHARED-TEMPORAL-CONTRACT
+ADR-002-SWING-STRUCTURE-LAYERING
+ADR-003-EQUAL-LEVEL-OWNERSHIP
+ADR-004-DEALING-RANGE-OWNERSHIP
+ADR-005-PERIOD-SUMMARY-OWNERSHIP
+ADR-006-OB-FVG-ASSOCIATION
+ADR-007-DIRECTION-AND-SCOPE-ENUMS
+ADR-008-DETERMINISTIC-IDS
+ADR-009-EVENT-BUS-ORDERING
+ADR-010-SCHEMA-VERSIONING
+
+Cada ADR deve conter:
+
+- contexto;
+- decisão;
+- alternativas rejeitadas;
+- consequências;
+- migration impact;
+- test impact;
+- rollback impact.
+
+================================================================================
+23. ENTREGÁVEIS DA FASE M0
+================================================================================
+
+Antes de alterar as engines, entregar:
+
+1. pacote `technical_engine/contracts`;
+2. CanonicalSwingContractV1;
+3. StructureLegV3;
+4. PeriodInstanceV3 / TradingPeriodSummaryV3;
+5. DealingRangeV3 canônico;
+6. EventEnvelopeV1;
+7. ContextAssociationV1;
+8. enums compartilhados;
+9. schema registry;
+10. compatibility matrix;
+11. ownership matrix;
+12. dez ADRs;
+13. contract test skeleton;
+14. dependency graph executável;
+15. relatório `RELATORIO_FASE_M0_CONTRACT_FREEZE.txt`.
+
+================================================================================
+24. CRONOGRAMA DE EXECUÇÃO POR WAVE
+================================================================================
+
+WAVE 0 — Fundação
+- contratos;
+- ADRs;
+- schema registry;
+- feature flags;
+- adapters skeleton.
+
+WAVE 1 — Tempo e calendário
+- Sessions;
+- TradingPeriodProvider;
+- completed events.
+
+WAVE 2 — Geometria estrutural
+- Swing layers 1-3;
+- equal clusters;
+- parity/incremental.
+
+WAVE 3 — Estrutura
+- Structure;
+- StructureLeg;
+- roles projection.
+
+WAVE 4 — Níveis e ranges
+- Previous Period;
+- Retracement core;
+- DealingRange.
+
+WAVE 5 — Liquidez
+- equal promoter;
+- structure levels;
+- previous-period levels;
+- ERL/IRL;
+- lifecycle.
+
+WAVE 6 — Imbalance e zonas
+- FVG core/context;
+- OB core;
+- lifecycle.
+
+WAVE 7 — Associação e visual
+- context association;
+- overlays;
+- APIs;
+- dashboard.
+
+WAVE 8 — Validação
+- full replay;
+- soak;
+- performance;
+- migration rehearsal;
+- rollback rehearsal.
+
+================================================================================
+25. DEFINITION OF DONE GLOBAL
+================================================================================
+
+Os oito planos só formam um sistema executável quando:
+
+1. o ownership de todos os contratos está congelado;
+2. não existem dois produtores autoritativos do mesmo conceito;
+3. Swing/Structure opera por pipeline faseado;
+4. EQH/EQL possui uma única origem geométrica;
+5. DealingRange possui um único produtor;
+6. completed periods possuem um único produtor;
+7. OB/FVG não possuem dependência circular de criação;
+8. todos os eventos respeitam available_index;
+9. IDs são determinísticos;
+10. contratos têm schema version;
+11. adapters legados estão testados;
+12. batch e streaming são equivalentes;
+13. replay truncado comprova anti-lookahead;
+14. foreign keys são resolvíveis;
+15. dashboard mostra origem, confirmação e disponibilidade;
+16. todas as engines permanecem shadow-only;
+17. rollback global foi testado;
+18. relatório integrado foi aprovado.
+
+================================================================================
+26. RELATÓRIO FINAL OBRIGATÓRIO
+================================================================================
+
+Criar:
+
+RELATORIO_FINAL_ORQUESTRACAO_8_ENGINES_SMC_V3.txt
+
+Conteúdo:
+
+1. resumo executivo;
+2. commit inicial e final;
+3. schemas produzidos;
+4. compatibility matrix;
+5. ownership matrix;
+6. arquivos alterados;
+7. migrations;
+8. resultados por gate;
+9. testes unitários;
+10. contract tests;
+11. cross-engine tests;
+12. batch/stream parity;
+13. anti-lookahead truncation;
+14. performance;
+15. divergências V2/V3;
+16. impacto por engine;
+17. guardrails;
+18. rollback;
+19. riscos remanescentes;
+20. status final.
+
+Status permitido:
+
+ORCHESTRATION_V3_CONTRACT_FREEZE_COMPLETE
+ORCHESTRATION_V3_SHADOW_PIPELINE_COMPLETE
+ORCHESTRATION_V3_COMPLETE_WITH_LIMITATIONS
+ORCHESTRATION_V3_BLOCKED
+ORCHESTRATION_V3_FAILED
+
+================================================================================
+27. REGRAS PARA A IA DE CÓDIGO
+================================================================================
+
+1. Não começar pela implementação de OB ou FVG contextual.
+2. Não criar modelos locais que dupliquem contratos do kernel.
+3. Não renomear campo cross-engine sem schema major.
+4. Não mapear `swing_type` para `method`.
+5. Não re-detectar EQH/EQL dentro da Liquidity.
+6. Não criar DealingRange dentro da Liquidity.
+7. Não agregar períodos novamente no Previous Period.
+8. Não alterar CanonicalSwing para gravar protected/weak.
+9. Não usar foreign ID futuro.
+10. Não preencher associação opcional antes da entidade existir.
+11. Não usar UUID aleatório para evento determinístico.
+12. Não usar timestamps naive.
+13. Não comparar candle_index entre streams diferentes.
+14. Não promover engine que falhou em contract tests.
+15. Não misturar migration funcional com baseline.
+16. Não apagar entidades superseded.
+17. Não substituir V2 sem etapa shadow.
+18. Não ativar sinais.
+19. Não declarar conclusão sem replay truncado.
+20. Em conflito documental, bloquear e emitir ADR; não improvisar.
+
+================================================================================
+28. RESULTADO FINAL ESPERADO
+================================================================================
+
+Ao concluir este plano-mestre, o projeto deverá possuir:
+
+- uma cadeia de dependências explícita e executável;
+- contratos compartilhados estáveis;
+- nomenclatura canônica;
+- ownership sem ambiguidades;
+- Swing/Structure sem deadlock;
+- EQH/EQL sem dupla detecção;
+- DealingRange sem duplicidade;
+- Sessions e Previous Period alinhados;
+- FVG e OB sem circularidade;
+- eventos temporais causalmente seguros;
+- replay e streaming equivalentes;
+- oito engines integradas em shadow;
+- base técnica pronta para implementação por fases, sem descobrir contratos
+  incompatíveis no meio do desenvolvimento.
+
+FIM DO PLANO-MESTRE

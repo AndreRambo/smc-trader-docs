@@ -1,6 +1,6 @@
 # Relatório: Engines, Indicadores, Zonas e Tabelas — SMC Trader System 7.0
 
-> Gerado: 2026-06-27 | Atualizado: 2026-06-30 | Fonte: `ARQUITETURA_OFICIAL.md` + código fonte
+> Gerado: 2026-06-27 | Atualizado: 2026-06-30 (R5A-MTF) | Fonte: `ARQUITETURA_OFICIAL.md` + código fonte
 > Base path: `/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/`
 > Total: **85 tabelas shadow** (produção) + 1 file store + **6 tabelas staging incremental** (pré-cutover, NÃO em produção — ver §3.11) + proposta Volume Profile (POC/VA) documentada em §3.12 (não implementada)
 
@@ -338,15 +338,15 @@
 
 **Diretório:** `technical_engine/smc_engine_v2/incremental/persistence/`
 **Migration MySQL:** `migrations/20260629_smc_v2_incremental_schema.sql`
-**Status:** **NÃO em produção.** Branch `feature/smc-v2-incremental-unified`. Engine única (live+replay+backtest) que substituirá o pipeline batch por cutover controlado. MySQL staging ainda não validado (R2 = PARTIAL, sem driver no ambiente). Ver `ARQUITETURA_OFICIAL.md` §4.10.
+**Status:** **NÃO em produção.** Branch `feature/smc-v2-incremental-unified`. R1→R4 PASS. R5A em andamento (MTF candle-a-candle replay — verificação final aguardando execução). MySQL staging ainda não validado (R2 = PARTIAL, sem driver no ambiente). Ver `ARQUITETURA_OFICIAL.md` §4.10.
 
 Schema com IDs SHA-256 determinísticos, escrita atômica por tick (SAVEPOINT), FK com `ON DELETE CASCADE`, e detecção de conflito (mesmo ID + payload diferente → `PersistenceConflictError`; nunca `INSERT OR IGNORE`):
 
 | Tabela | Conteúdo | Chave |
 |--------|----------|-------|
 | `smc_v2_engine_runs` | um registro por run de backfill/live | `run_id` (PK) |
-| `smc_v2_structures` | `StructureEmission` (append-only) — inclui `ob_subtype` no `payload_json` | `structure_id` (PK, FK→runs) |
-| `smc_v2_structure_events` | `StructureEventEmission` (lifecycle AVAILABLE→TOUCHED→PARTIALLY_FILLED→MITIGATED) | `event_id` (PK, FK→runs, FK→structures) |
+| `smc_v2_structures` | `StructureEmission` (append-only) — inclui `ob_subtype` no `payload_json`; aceita `structure_type="FIBONACCI_ANCHOR"` | `structure_id` (PK, FK→runs) |
+| `smc_v2_structure_events` | `StructureEventEmission` (lifecycle AVAILABLE→TOUCHED→PARTIALLY_FILLED→MITIGATED→ANCHOR_CHANGED) | `event_id` (PK, FK→runs, FK→structures) |
 | `smc_v2_checkpoints` | snapshots completos da engine (JSON) | `checkpoint_id` (PK, FK→runs) |
 | `smc_v2_active_stream_versions` | ponteiro de run ativo por (asset_id, timeframe) | `UNIQUE(asset_id, timeframe)` |
 | `smc_v2_reconciliation` | log de auditoria órfãos/residual | `id` (PK) |
@@ -356,6 +356,16 @@ Schema com IDs SHA-256 determinísticos, escrita atômica por tick (SAVEPOINT), 
 > `structure_id` estável. TIER 2 (`structure_confirmed`/`liquidity_aligned`) está
 > diferido no incremental — exige orquestração de confluência cross-component.
 > Rename `BREAKER`→`STACKED` aplicado em batch e incremental (2026-06-30).
+
+> **Correção R5A — FIBONACCI_ANCHOR (2026-06-30):** `RetracementsComponent` gerava
+> eventos `ANCHOR_CHANGED` com `structure_id` de um âncora sintético que NUNCA
+> era publicado como `StructureEmission`, causando `FOREIGN KEY constraint failed`
+> na tabela `smc_v2_structure_events`. Fix: adicionado `_emit_anchor_structure()`
+> que emite o âncora com `structure_type="FIBONACCI_ANCHOR"` antes de qualquer
+> evento que o referencie. O conjunto de `structure_type` válidos em
+> `smc_v2_structures` agora inclui: `FVG`, `ORDER_BLOCK`, `BOS`, `CHOCH`,
+> `LIQUIDITY`, `BPR`, `SWING`, `SESSION`, `PDH`, `PDL`, **`FIBONACCI_ANCHOR`**.
+> Arquivo: `incremental/components/retracements.py`.
 
 #### R3 — Integração Opportunity Engine (staging)
 

@@ -1,6 +1,6 @@
 # ARQUITETURA OFICIAL — SMC Trader System 7.0
 
-> Atualizado: 2026-06-30 | SMC Engine V2 Incremental Unified — remediação pré-cutover R1→R3 concluída (R1 active-zone safety, R2 integridade de persistência, R3 unificação do Opportunity Engine) + paridade OB NTSL (ob_subtype NORMAL/REJECTION/STACKED) portada batch→incremental. BREAKER renomeado para STACKED para evitar colisão semântica com breaker-block clássico. Spec em `docs/SMC_ENGINE_V2_INCREMENTAL_UNIFIED_SPEC/`. Ver §4.10. Proposta de confluência Volume Profile (POC/VA/HVN/LVN) documentada em §4.11 — não implementada.
+> Atualizado: 2026-06-30 | SMC Engine V2 Incremental Unified — remediação pré-cutover R1→R4 concluída + R5A-MTF em andamento. R4 PASS: shadow runtime real integrado, 17 testes gate passando. R5A: script MTF candle-a-candle (`tools/r5a_mtf_replay.py`) implementado; bug FK `FIBONACCI_ANCHOR` corrigido em `retracements.py`; `SMC_V2_SKIP_HOSTINGER_SYNC` adicionado em `sync_v2.py`. Verificação final aguardando execução do usuário. Ver §4.10. Paridade OB NTSL (ob_subtype NORMAL/REJECTION/STACKED) portada batch→incremental. BREAKER renomeado para STACKED. Proposta Volume Profile (§4.11) — não implementada.
 >
 > Histórico: 2026-06-28 | FASE V4_04 concluída: Repositories transacionais, RSI-Heikin Ashi, persistência controlada de indicadores D1. Plano em `Sistema VPS/Plano/Plano Ativo/PLANO_EXECUTIVO_WINFUT_CAUSAL_LIVE_REPLAY_V4_ATUALIZADO_V1_2.md`. 80 testes V4, 18 tabelas `winfut_lr_v4_*`, schema-validate PASS, transaction-probe PASS.
 
@@ -1086,7 +1086,7 @@ scan_once(persist=False)
 
 **Objetivo:** engine SMC única para live + replay + backtest, O(1) por candle, causal (`available_at` guard), com IDs SHA-256 determinísticos para estruturas/eventos/checkpoints. Substituirá o pipeline batch `STABLE_FROZEN_V2` por cutover controlado (ainda **NÃO** em produção).
 
-**Status:** `PHASE_08_COMPLETE` + remediação pré-cutover **R1→R3 PASS**. Branch `feature/smc-v2-incremental-unified`. Spec: `docs/SMC_ENGINE_V2_INCREMENTAL_UNIFIED_SPEC/`.
+**Status:** `PHASE_08_COMPLETE` + remediação pré-cutover **R1→R4 PASS** + **R5A em andamento**. Branch `feature/smc-v2-incremental-unified`. Spec: `docs/SMC_ENGINE_V2_INCREMENTAL_UNIFIED_SPEC/`.
 
 | Camada | Componente | Notas |
 |--------|-----------|-------|
@@ -1103,7 +1103,7 @@ scan_once(persist=False)
 - **R3 — Unificação do Opportunity Engine (PASS):** backtest deixa de usar evaluator simplificado; passa pelo `opportunity_scanner` canônico via adapter. `opportunity_scanner/*` intocado.
 - **OB subtype parity:** `ob_subtype` (NORMAL/REJECTION/STACKED) portado batch→incremental, gravado no `payload` do OB (struct_id estável; TIER 2 confluência diferido no incremental). Decisão de rename `BREAKER`→`STACKED` (2026-06-30) para evitar colisão semântica com breaker-block clássico (`ZONE_TYPE_BREAKER`).
 - **R4 — Shadow runtime real + rollback (PASS):** `shadow_runtime.py` injeta o engine incremental após cada persist batch; flag `SMC_V2_INCREMENTAL_SHADOW=true`; SQLite local (nunca MySQL produção); RESTART_CONTINUITY via checkpoint; ROLLBACK = desligar flag; ZERO_SHADOW_ORDERS garantido por código. 17 testes de gate passando (2026-06-30).
-- **R5 — Soak/replay final + decisão de cutover:** ainda não autorizado.
+- **R5A — MTF candle-a-candle replay (EM ANDAMENTO):** `tools/r5a_mtf_replay.py` (604 linhas) simula o coletor B3 real: M2 inserido antes do M5, M15/H1/H4/D1 inseridos após o M5 quando a fronteira de período é atingida. **Bugs corrigidos nesta fase:** (1) timeout Hostinger ~600s/step → `SMC_V2_SKIP_HOSTINGER_SYNC=true` env var em `infra/sync_v2.py`; (2) FK `FOREIGN KEY constraint failed` em `smc_v2_structure_events` → `RetracementsComponent` emitia evento `ANCHOR_CHANGED` com `structure_id` nunca publicado como `StructureEmission` → corrigido com `_emit_anchor_structure()` emitindo `structure_type="FIBONACCI_ANCHOR"` antes do evento; (3) `assert_db_clean()` adicionado para abortar se banco não foi limpo (impede silent no-op). Verificação final (`--limit 1000 --bootstrap 100`) aguardando execução do usuário. Plano: `docs_geral/Sistema VPS/Plano/Plano Ativo/Plano_R5A_MTF.md`.
 
 **Guardrails permanentes:** nenhuma zona ativa removida por limite de quantidade; `EXPIRED` só por regra de domínio causal/versionada; conflito de persistência nunca silencioso; cutover só após MySQL staging + shadow runtime real + rollback pós-restart.
 
