@@ -381,7 +381,8 @@ Todos os 10 gates (G0–G10) implementados como packages shadow-only independent
 | `technical_engine/context/` | G9 | 2 | 4 | `765d4f2` |
 | `technical_engine/orchestration/` | G10 | 2 | 4 | `58bd971` |
 | `technical_engine/integration/` | G9 | 4 | 13 | `76527f4` |
-| **Total** | | **94** | **229** | |
+| `technical_engine/cutover/` | G10 | 4 | 13 | `1c57968` |
+| **Total** | | **98** | **242** | |
 
 ### Princípios implementados
 
@@ -426,7 +427,7 @@ G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10 — todos APROVADOS
 ### Status
 
 ```text
-IMPLEMENTACAO_CORE_COMPLETA_SHADOW
+IMPLEMENTACAO_COMPLETA_SHADOW — G0-G10 aprovados
 ```
 
 ```markdown
