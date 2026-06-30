@@ -1,6 +1,8 @@
 # ARQUITETURA OFICIAL — SMC Trader System 7.0
 
-> Atualizado: 2026-06-30 | SMC Engine V2 Incremental Unified — remediação pré-cutover R1→R4 concluída + R5A-MTF em andamento. R4 PASS: shadow runtime real integrado, 17 testes gate passando. R5A: script MTF candle-a-candle (`tools/r5a_mtf_replay.py`) implementado; bug FK `FIBONACCI_ANCHOR` corrigido em `retracements.py`; `SMC_V2_SKIP_HOSTINGER_SYNC` adicionado em `sync_v2.py`. Verificação final aguardando execução do usuário. Ver §4.10. Paridade OB NTSL (ob_subtype NORMAL/REJECTION/STACKED) portada batch→incremental. BREAKER renomeado para STACKED. Proposta Volume Profile (§4.11) — não implementada.
+> Atualizado: 2026-06-30 | **SMC Engine V3 — CANONICAL_V3 ativo.** 8 engines batch refatoradas (sessions.py, swings.py, structure.py, previous_high_low.py, retracements.py, liquidity.py, order_blocks.py, fvg.py) com detection_definition="CANONICAL_V3" como padrão. Temporal window, SHA-256 IDs, guardrails shadow_only. Backward compat LEGACY_V2 preservada. Incremental track (PHASE_08+R1-R5A) mantido como track paralelo. PR merged. Ver §4.10.
+>
+> Histórico: 2026-06-30 | SMC Engine V2 Incremental Unified — remediação pré-cutover R1→R4 concluída + R5A-MTF em andamento.
 >
 > Histórico: 2026-06-28 | FASE V4_04 concluída: Repositories transacionais, RSI-Heikin Ashi, persistência controlada de indicadores D1. Plano em `Sistema VPS/Plano/Plano Ativo/PLANO_EXECUTIVO_WINFUT_CAUSAL_LIVE_REPLAY_V4_ATUALIZADO_V1_2.md`. 80 testes V4, 18 tabelas `winfut_lr_v4_*`, schema-validate PASS, transaction-probe PASS.
 
@@ -1082,7 +1084,40 @@ scan_once(persist=False)
 
 ---
 
-### 4.10 SMC Engine V2 Incremental Unified (`smc_engine_v2/incremental/`)
+### 4.10 SMC Engine V3 — Batch Canônico (`smc_engine_v3/`)
+
+**Objetivo:** correção algorítmica das 8 engines batch seguindo o plano mestre de orquestração e 8 planos operacionais individuais. Alvo: `technical_engine/smc_engine_v3/` (arquivos planos). `shadow_only=True` em todo o runtime.
+
+**Status:** `CANONICAL_V3` — 8 engines refatoradas com detecção corrigida. Branch `feature/smc-v2-incremental-unified` (merged → main). PR #1.
+
+**Arquivos V3 (alvo único):**
+
+| Arquivo | Engine | Principais correções |
+|---|---|---|
+| `sessions.py` | Sessions | IANA/zoneinfo DST-aware, market calendar, holidays, early close, multi-sessão, lifecycle |
+| `swings.py` | Swing | EQH/EQL preservados (SUPERSEDED, nunca deletados), HH/HL/LH/LL, quality (prominence), Layer4 protected/weak |
+| `structure.py` | Structure | State-machine BOS/CHOCH (não 4-swings), displacement, wick sweep, force score, SwingAvailabilityAdapter (§4.3 mapping) |
+| `previous_high_low.py` | Previous HL | TOUCH/WICK_SWEEP/CLOSE_THROUGH distinction |
+| `retracements.py` | Retracement | Premium/Equilibrium/Discount, internal calculator, range via Structure |
+| `liquidity.py` | Liquidity | ERL/IRL real, lifecycle states, source promotion |
+| `order_blocks.py` | Order Block | Lifecycle 10-state (CANDIDATE→...→EXPIRED), freshness, ob_subtype (NORMAL/REJECTION/STACKED) |
+| `fvg.py` | FVG | FvgEventV3 canonical class, detect_ifvg_bpr() for BPR detection |
+
+**Contratos congelados:** `technical_engine/smc_engine_v3/contracts/` — temporal window, guardrails, IDs SHA-256, Scope enum. Re-exportam do kernel `technical_engine/contracts/`.
+
+**Feature flags por engine:** `completions.py` — FeatureFlags com promote/rollback (shadow_v3 → canonical_v3 → legacy_v2).
+
+**Shadow persistence:** `ShadowPersistenceCollector` (dry-run, 9 shadow tables).
+
+**Replay MTF:** `replay_mtf.py` — ReplayMtfRunner com parity verification multi-asset.
+
+**Parâmetro `detection_definition`:**
+- `"CANONICAL_V3"` — padrão em todas as 8 engines
+- `"LEGACY_V2"` — backward compat via parâmetro explícito
+
+**Pacotes órfãos arquivados:** `technical_engine/_archived_v3_packages_unused/` — código morto do M0-G10 (zero consumidores reais).
+
+### 4.11 SMC Engine V2 Incremental Unified (`smc_engine_v2/incremental/`)
 
 **Objetivo:** engine SMC única para live + replay + backtest, O(1) por candle, causal (`available_at` guard), com IDs SHA-256 determinísticos para estruturas/eventos/checkpoints. Substituirá o pipeline batch `STABLE_FROZEN_V2` por cutover controlado (ainda **NÃO** em produção).
 
