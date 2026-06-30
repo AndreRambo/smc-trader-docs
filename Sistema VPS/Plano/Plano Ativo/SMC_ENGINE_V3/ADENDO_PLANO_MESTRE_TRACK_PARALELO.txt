@@ -1,0 +1,134 @@
+================================================================================
+ADENDO AO PLANO MESTRE DE ORQUESTRAÇÃO — SMC ENGINE V3
+Achado: existência de track paralelo (smc_engine_v2/incremental/)
+================================================================================
+
+ONDE ENCAIXAR ESTE ADENDO
+--------------------------------------------------------------------------------
+Inserir como nova "SEÇÃO 1.5 — TRACK PARALELO E RISCO DE DUPLICAÇÃO" no
+PLANO_MESTRE_ORQUESTRACAO_SMC_ENGINE_V3.md, entre a Seção 1 (Mapa de
+Dependências) e a Seção 2 (Ordem Global de Implementação). Também adicionar
+a checagem da Seção C abaixo ao "Checklist de Arranque" (Seção 8 do mestre)
+e ao Estágio 0.
+
+--------------------------------------------------------------------------------
+A. O ACHADO
+--------------------------------------------------------------------------------
+A leitura de `docs_geral/ARQUITETURA_OFICIAL.md` (§4.10) revela que já existe
+uma SEGUNDA linha de correção da SMC Engine, em estado avançado, mirando o
+MESMO objetivo do conjunto de 8 planos V3:
+
+  Diretório:  technical_engine/smc_engine_v2/incremental/
+  Branch:     feature/smc-v2-incremental-unified
+  Status:     PHASE_08_COMPLETE + remediação R1→R4 PASS + R5A em andamento
+  Objetivo declarado: "Substituirá o pipeline batch STABLE_FROZEN_V2 por
+                        cutover controlado (ainda NÃO em produção)"
+
+Essa engine incremental JÁ possui componentes próprios para:
+  swing, fvg, ob, bos_choch, liquidity, bpr, retracements, sessions,
+  previous_high_low
+
+— ou seja, o MESMO conjunto de 9 engines que os 8 planos operacionais V3
+(Sessions, Swing, Structure, Previous High/Low, Liquidity, Retracement,
+Order Block, FVG) também visam corrigir, na cópia smc_engine_v3/.
+
+A engine incremental já resolve, por arquitetura própria, boa parte dos
+problemas que os planos V3 listam como diagnóstico do "estado atual":
+  - causalidade: já usa available_at como guard (R1-R4)
+  - lifecycle: zonas ativas com estados (não mais binário simples)
+  - persistência: atômica por tick (SAVEPOINT), conflict-aware (R2)
+  - IDs determinísticos: SHA-256 (alinhado ao princípio de idempotência do
+    contrato canônico do plano mestre, Seção 3.3)
+  - shadow runtime real já injetado e testado (R4, 17 testes de gate)
+
+--------------------------------------------------------------------------------
+B. RISCO QUE ISSO INTRODUZ
+--------------------------------------------------------------------------------
+Sem resolver isto ANTES do Estágio 0, dois riscos concretos:
+
+1. DUPLICAÇÃO DE ESFORÇO: implementar do zero, em smc_engine_v3/ (arquitetura
+   batch corrigida), problemas que smc_engine_v2/incremental/ já resolveu por
+   uma arquitetura diferente (incremental por candle).
+
+2. DOIS CANDIDATOS A CUTOVER: ao final, o sistema teria duas engines
+   corrigidas — v3 (batch) e incremental — disputando o mesmo papel de
+   substituir STABLE_FROZEN_V2. Isso não foi decidido em nenhum lugar e não
+   pode ser decidido implicitamente pela IA de código.
+
+--------------------------------------------------------------------------------
+C. AÇÃO OBRIGATÓRIA ANTES DO ESTÁGIO 0
+--------------------------------------------------------------------------------
+A IA de código NÃO deve decidir isso sozinha. Antes de criar qualquer arquivo
+em smc_engine_v3/contracts/, ela deve:
+
+  1. Ler docs_geral/ARQUITETURA_OFICIAL.md §4.10 por completo (estado atual
+     de smc_engine_v2/incremental/, R1→R5A).
+  2. Ler o diretório technical_engine/smc_engine_v2/incremental/components/
+     e comparar, componente a componente, com os 8 planos V3:
+       - o que a engine incremental JÁ resolve de cada diagnóstico listado
+         nos planos individuais (ex.: a Liquidity incremental já tem
+         ERL/IRL? já tem candidate/forming/confirmed/active/tested/swept?).
+       - o que ainda falta, mesmo na engine incremental.
+  3. Produzir uma tabela de sobreposição (uma linha por engine das 9):
+       | Engine | Resolvido no incremental? | Resolvido nos planos V3? | Gap remanescente |
+  4. PARAR e reportar essa tabela ao usuário antes de prosseguir. Apresentar
+     no mínimo estas opções, sem escolher por conta própria:
+       (a) Abandonar/pausar a correção batch v3 e em vez disso direcionar o
+           esforço para finalizar e validar smc_engine_v2/incremental/
+           (R5A → R5 → cutover), já que está mais avançado.
+       (b) Prosseguir com smc_engine_v3/ como originalmente planejado,
+           tratando-a como uma segunda fonte de verdade batch, e decidir o
+           cutover entre v3 e incremental apenas depois de ambas prontas
+           (maior custo, mas preserva otimização futura por comparação A/B).
+       (c) Portar os GANHOS CONCEITUAIS dos 8 planos V3 (ex.: ERL/IRL na
+           Liquidity, Premium/Equilibrium/Discount no Retracement, camadas
+           de Swing) DIRETAMENTE para dentro de
+           smc_engine_v2/incremental/components/, em vez de criar
+           smc_engine_v3/ do zero — aproveitando a base causal/atômica que
+           o incremental já tem pronta.
+  5. Só iniciar o Estágio 0 do plano mestre após o usuário escolher
+     explicitamente uma das opções acima (ou outra).
+
+--------------------------------------------------------------------------------
+D. SE A OPÇÃO ESCOLHIDA FOR (b) — MANTER smc_engine_v3/ COMO PLANEJADO
+--------------------------------------------------------------------------------
+Caso o usuário confirme que quer mesmo prosseguir com a correção batch em
+smc_engine_v3/ independentemente da engine incremental, valem as regras
+adicionais abaixo (em complemento às já existentes no plano mestre):
+
+  - PROIBIDO alterar também technical_engine/smc_engine_v2/incremental/,
+    além de smc_engine_v2/ (batch). O isolamento de smc_engine_v3/ vale
+    para AMBOS.
+  - O "Checklist de Arranque" (Seção 8 do mestre) passa a incluir:
+      [ ] Confirmar que smc_engine_v3/ não importa nada de
+          smc_engine_v2/incremental/
+      [ ] Branch de trabalho da v3 documentada como distinta de
+          feature/smc-v2-incremental-unified
+  - A suíte de regressão "sentinela" do plano mestre (Seção 6, Definition of
+    Done) deve rodar TANTO os testes de smc_engine_v2/ (164 testes, baseline
+    STABLE_FROZEN_V2) QUANTO os testes de smc_engine_v2/incremental/
+    (suíte R1-R5A), não apenas a v2 batch. Qualquer mudança em qualquer uma
+    das duas é sinal de vazamento de escopo.
+  - Documentar explicitamente em ARQUITETURA_OFICIAL.md, ao final do
+    Estágio 0, que existem agora 3 linhas paralelas (v2 batch frozen, v2
+    incremental R1-R5A, v3 batch corrigida) e qual é o critério de decisão
+    de cutover entre elas — isso não pode ficar implícito.
+
+--------------------------------------------------------------------------------
+E. NOTA SOBRE OS 8 PLANOS INDIVIDUAIS
+--------------------------------------------------------------------------------
+Os diagnósticos de "estado atual" dos 8 planos operacionais foram conferidos
+contra o schema real de produção (RELATORIO_ENGINES_INDICADORES_ZONAS.md) e
+estão CORRETOS — não precisam de correção de conteúdo:
+  - Liquidity: schema real confirma pool por preço único, sem ERL/IRL.
+  - Retracement: schema real confirma `direction` ambíguo, sem PED.
+  - Previous High/Low: schema real confirma `broken_high`/`broken_low` INT
+    binário.
+  - Sessions: schema real confirma `time_zone` único, sem `session_id`.
+
+Nenhuma alteração de conteúdo é necessária nos 8 planos individuais. A única
+ação é a verificação de sobreposição da Seção C acima antes de aplicá-los.
+
+================================================================================
+FIM DO ADENDO
+================================================================================
