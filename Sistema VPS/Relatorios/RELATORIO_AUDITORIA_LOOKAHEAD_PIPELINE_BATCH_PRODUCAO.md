@@ -164,9 +164,53 @@ Após esta auditoria, foi desenhada e implementada uma correção real do look-a
 - Novo arquivo `tests/test_smc_engine_v2/test_causal_views_lookahead_fix.py` (7 testes): reindexação correta, exclusão de cauda, invariância de prefixo (dataset completo vs. truncado) para ambas as views, e a correção de metadado do FVG.
 - Execução real ponta a ponta (dados EURUSD, 500 candles): com a flag `False` (padrão), `swing_count`/`fvg_count`/todos os diagnósticos são **idênticos** ao comportamento anterior à mudança. Com a flag `True`, as contagens de OB (28→55) e BOS/CHOCH (53→63) mudam — evidenciando que a correção realmente altera quais estruturas dependentes de swing são detectadas quando a causalidade é imposta, exatamente como esperado (o pipeline atual conta estruturas que dependem de pivôs "vistos antes da hora").
 
-### 9.3 Status e Próximos Passos
+### 9.3 Correção Commitada
+
+Commit `6f30992` na branch `feature/smc-v3-causal-rebuild-real-data`: `fix(smc-v3): additive causal views for batch pipeline look-ahead (opt-in)`. Arquivos alterados: `technical_engine/smc_engine_v3/swings.py`, `technical_engine/smc_engine_v3/fvg.py`, `technical_engine/smc_engine_v3/pipeline.py`, novo `tests/test_smc_engine_v2/test_causal_views_lookahead_fix.py`. Plano completo da correção: `/home/bimaq/.claude/plans/agile-meandering-fairy.md`.
+
+### 9.4 Shadow-Run sobre Dados Reais WINFUT (2026-07-01)
+
+Comparação `causal_swings_fvg=False` (produção hoje) vs. `True` (correção causal) rodada sobre o dataset completo `data/csv_import/canonical/WINFUT_H1_canonical.csv` — 12.018 candles H1 reais, 2021-06-22 a 2026-06-19 (o mesmo stream usado em R0-R22).
+
+**Resultado — flag OFF vs. ON:**
+
+| Estrutura | OFF (produção) | ON (causal) | Delta |
+|---|---:|---:|---:|
+| swings (raw, `result["swings"]`) | 1701 | 1701 | 0% |
+| fvg (raw, `result["fvg"]`) | 2966 | 2966 | 0% |
+| order_blocks | 648 | 1182 | **+82.4%** |
+| bos_choch | 1917 | 2442 | **+27.4%** |
+| bullish_ob | 316 | 585 | +85.1% |
+| bearish_ob | 332 | 597 | +79.8% |
+| bos_count | 1595 | 2106 | +32.0% |
+| choch_count | 322 | 336 | +4.3% |
+| liquidity | 409 | 409 | 0% |
+| retracements | 12003 | 11998 | -0.04% |
+| bpr | 424 | 424 | 0% |
+| pivôs excluídos por cauda (`causal_swings_excluded_tail_count`) | — | 0 | (nunca acionado neste dataset — consistente com a análise de §9.1: a própria fórmula de detecção já exige `origin+swing_length <= n-1` para não retornar NaN, tornando o clamp de cauda uma salvaguarda defensiva raramente/nunca exercida na prática) |
+
+**Achados:**
+1. `swings`/`fvg` brutos (usados nos overlays visuais) são **idênticos** com a flag ligada ou desligada em todo o stream de 12.018 candles — confirma que o design aditivo funciona exatamente como projetado (zero efeito colateral na detecção original).
+2. **OB e BOS/CHOCH mudam substancialmente** quando a causalidade é imposta (+82,4% e +27,4% respectivamente). Liquidity, BPR e Retracements permanecem praticamente inalterados. Isso indica que o pipeline em produção hoje **sub-conta ou classifica incorretamente** uma fração relevante de Order Blocks e eventos BOS/CHOCH — a sequência/ordem dos pivôs é preservada pela view causal (sem colisões, posições de origem estritamente crescentes), mas o ponto de início da varredura de rompimento (`close[i+2:] > level[i]`) muda porque `i` (a linha onde o pivô aparece) passa a ser `AvailableIndex` em vez de `OriginIndex` — isso reclassifica quais padrões de 4-swing realmente se qualificam como BOS/CHOCH e, por extensão, quais Order Blocks são ancorados. **Este é o achado mais relevante para decisão de produto** — a diferença não é cosmética e merece revisão do dono do produto antes de qualquer cutover.
+
+**Validação cruzada vs. motor incremental (referência já validada no plano R0-R22):**
+
+| Componente | Batch (causal, params default) | Incremental (params default) |
+|---|---:|---:|
+| swings | 1701 | 1519 |
+| fvg | 2966 | 4400 |
+| order_blocks | 1182 | 1761 |
+| bos_choch | 2442 | 971 |
+| liquidity | 409 | 1406 |
+| retracements | 11998 | 5212 |
+| bpr | 424 | 1370 |
+
+**Ressalva metodológica:** esta comparação **não é rigorosamente apples-to-apples** — os dois motores rodaram com parâmetros default próprios (definição de OB, clustering de liquidez, granularidade de retracement, regras de junção de FVG diferem entre batch e incremental). As divergências grandes (ex.: liquidity 409 vs. 1406, retracements 11998 vs. 5212, bpr 424 vs. 1370) provavelmente refletem essas diferenças de parâmetro/design, não um erro na correção causal em si. Uma validação cruzada rigorosa exigiria alinhar previamente os parâmetros de ambos os motores — **ainda não realizado**, listado como próximo passo.
+
+### 9.5 Status e Próximos Passos
 
 - **Nenhuma mudança de comportamento em produção** — a flag tem default `False`; o sistema roda hoje exatamente como antes desta correção.
-- Antes de qualquer decisão de ativar `causal_swings_fvg=True` por padrão: recomenda-se rodar a comparação em shadow (saída antiga vs. nova) sobre dados reais WINFUT completos e um teste de validação cruzada contra o motor incremental (`incremental/components/swings.py`/`fvg.py`, já validado no plano R0-R22) — ainda não executado nesta sessão.
-- Arquivos alterados: `technical_engine/smc_engine_v3/swings.py`, `technical_engine/smc_engine_v3/fvg.py`, `technical_engine/smc_engine_v3/pipeline.py`, novo `tests/test_smc_engine_v2/test_causal_views_lookahead_fix.py`.
-- Plano completo da correção: `/home/bimaq/.claude/plans/agile-meandering-fairy.md`.
+- Shadow-run sobre dados reais WINFUT completo: **concluído** (§9.4). Mostrou impacto real e não-trivial em OB (+82%) e BOS/CHOCH (+27%) quando a flag é ativada.
+- **Antes de considerar ativar `causal_swings_fvg=True` por padrão:**
+  1. Revisão do dono do produto sobre o aumento de OB/BOS-CHOCH — são zonas "novas" legítimas que o pipeline atual perdia, ou o aumento exige recalibração de thresholds/qualidade?
+  2. Validação cruzada rigorosa contra o motor incremental com parâmetros alinhados entre os dois motores (ainda não feita — a comparação em §9.4 usa defaults distintos de cada motor).
