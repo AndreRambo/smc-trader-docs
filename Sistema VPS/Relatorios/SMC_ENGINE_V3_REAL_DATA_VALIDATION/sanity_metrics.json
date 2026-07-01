@@ -1,0 +1,97 @@
+{
+  "candles_processed": 12018,
+  "components": {
+    "sessions": {
+      "total": 4984,
+      "by_type": {
+        "SESSION_OPEN": 2492,
+        "SESSION_CLOSE": 2492
+      },
+      "active": 4984,
+      "terminal": 0
+    },
+    "swings": {
+      "total": 1519,
+      "by_type": {
+        "SWING_HIGH": 767,
+        "SWING_LOW": 752
+      },
+      "active": 1519,
+      "terminal": 0
+    },
+    "bos_choch": {
+      "total": 971,
+      "by_type": {
+        "WICK_SWEEP_HIGH": 162,
+        "BOS_BEARISH": 245,
+        "WICK_SWEEP_LOW": 174,
+        "CHOCH_BULLISH": 100,
+        "CHOCH_BEARISH": 87,
+        "BOS_BULLISH": 203
+      },
+      "active": 971,
+      "terminal": 0
+    },
+    "previous_high_low": {
+      "total": 2490,
+      "by_type": {
+        "PDH": 1245,
+        "PDL": 1245
+      },
+      "active": 2490,
+      "terminal": 0
+    },
+    "retracements": {
+      "total": 5212,
+      "by_type": {
+        "FIBONACCI_ANCHOR": 772,
+        "FIBO_LEVEL": 3700,
+        "DEALING_RANGE": 740
+      },
+      "active": 5212,
+      "terminal": 0
+    },
+    "liquidity": {
+      "total": 1406,
+      "by_type": {
+        "BUYSIDE_LIQUIDITY": 707,
+        "SELLSIDE_LIQUIDITY": 699
+      },
+      "active": 56,
+      "terminal": 1350
+    },
+    "fvg": {
+      "total": 4400,
+      "by_type": {
+        "FVG_BEARISH": 1478,
+        "FVG_BULLISH": 1488,
+        "IFVG_BEARISH": 733,
+        "IFVG_BULLISH": 701
+      },
+      "active": 1483,
+      "terminal": 2917
+    },
+    "bpr": {
+      "total": 1370,
+      "by_type": {
+        "BPR_BULLISH": 668,
+        "BPR_BEARISH": 702
+      },
+      "active": 15,
+      "terminal": 1355
+    },
+    "order_blocks": {
+      "total": 1761,
+      "by_type": {
+        "OB_BULLISH": 928,
+        "OB_BEARISH": 833
+      },
+      "active": 28,
+      "terminal": 1733
+    }
+  },
+  "structure_events_per_swing": 0.639,
+  "duplicate_structure_breaks": 0,
+  "alarms": [],
+  "errors": []
+}

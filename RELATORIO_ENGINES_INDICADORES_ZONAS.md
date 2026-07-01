@@ -1,5 +1,21 @@
 # Relatório: Engines, Indicadores, Zonas e Tabelas — SMC Trader System 7.0
 
+> **Atualizado 2026-07-01:** correções de path (§3, §3.11) e causalidade (§3) —
+> o pipeline batch que popula `technical_engine_smc_v2_*_shadow` vive fisicamente
+> em `smc_engine_v3/`, não `smc_engine_v2/` (que só tem `__init__.py`), e foi
+> confirmado **não-causal** (look-ahead em swings.py/fvg.py) por auditoria
+> dedicada. O motor incremental (§3.11) foi validado end-to-end com dados reais
+> pelo plano SMC V3 (R0-R22) — permanece shadow-only. Ver
+> `Sistema VPS/Relatorios/RELATORIO_AUDITORIA_LOOKAHEAD_PIPELINE_BATCH_PRODUCAO.md`
+> e `Sistema VPS/Relatorios/SMC_ENGINE_V3_REAL_DATA_VALIDATION/RELATORIO_FINAL_SMC_V3_REAL_DATA_VALIDATION.md`.
+>
+> **Atualizado 2026-07-01 (mesmo dia) — correção implementada (opt-in):**
+> `swings.to_causal_swings_view()`/`fvg.to_causal_fvg_view()` foram adicionadas
+> e `pipeline.py` ganhou `causal_swings_fvg: bool = False` para consumi-las nos
+> detectores dependentes de swing (OB/Structure/Liquidity/Retracements/BPR).
+> Default `False` preserva o comportamento de produção **sem nenhuma mudança**.
+> Ver §9 de `RELATORIO_AUDITORIA_LOOKAHEAD_PIPELINE_BATCH_PRODUCAO.md`.
+>
 > Gerado: 2026-06-27 | Atualizado: 2026-06-30 (R5A-MTF) | Fonte: `ARQUITETURA_OFICIAL.md` + código fonte
 > Base path: `/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/`
 > Total: **85 tabelas shadow** (produção) + 1 file store + **6 tabelas staging incremental** (pré-cutover, NÃO em produção — ver §3.11) + proposta Volume Profile (POC/VA) documentada em §3.12 (não implementada)
@@ -59,8 +75,28 @@
 
 ## 3. SMC Engine V2 — Tabelas e Colunas
 
-**Diretório:** `/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/technical_engine/smc_engine_v2/`
-**Status:** `STABLE_FROZEN_V2` | **Testes:** 164
+> ⚠️ **CORREÇÃO DE PATH E CAUSALIDADE (2026-07-01):** o diretório real do
+> pipeline que popula estas tabelas é
+> `technical_engine/smc_engine_v3/` (`pipeline.py`, `swings.py`, `fvg.py`, etc.)
+> — `technical_engine/smc_engine_v2/` contém apenas um `__init__.py` de 16 linhas,
+> sem lógica própria (confirmado via auditoria do plano SMC V3, fase R0).
+> Confirmado também via `infra/sync_v2.py:811-812`, que importa
+> `run_smc_engine_v2_local` diretamente de
+> `technical_engine.smc_engine_v3.pipeline`. **Além disso, esse pipeline não é
+> causal:** auditoria dedicada confirmou look-ahead estrutural em `swings.py`
+> (idêntico nos caminhos LEGACY_V2 e CANONICAL_V3) e `fvg.py` — ver
+> `Sistema VPS/Relatorios/RELATORIO_AUDITORIA_LOOKAHEAD_PIPELINE_BATCH_PRODUCAO.md`.
+> O rótulo `STABLE_FROZEN_V2` abaixo refere-se à estabilidade da calibração/API,
+> não à ausência de look-ahead.
+>
+> ⚠️ **Correção opt-in implementada (2026-07-01):** `causal_swings_fvg=True` em
+> `run_smc_engine_v2_local()` ativa `swings.to_causal_swings_view()`/
+> `fvg.to_causal_fvg_view()` para os detectores dependentes de swing. Default
+> `False` — comportamento das tabelas abaixo permanece o mesmo até ativação
+> explícita. Ver §9 do relatório de auditoria.
+
+**Diretório real:** `/home/bimaq/projetos/SMC_Trader_System_7_0/SMC_Trader_System 7.0/technical_engine/smc_engine_v3/` (ver correção acima)
+**Status:** `STABLE_FROZEN_V2` (naming) — **não-causal por padrão, correção opt-in disponível (ver aviso acima)** | **Testes:** 164
 
 ### 3.1 `technical_engine_smc_v2_runs_shadow`
 
@@ -334,11 +370,25 @@
 | shadow_only | TINYINT(1) NOT NULL DEFAULT 1 |
 | created_at | DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP |
 
-### 3.11 SMC Engine V2 Incremental — schema staging (pré-cutover)
+### 3.11 SMC Engine V3 Incremental — schema staging (pré-cutover)
 
-**Diretório:** `technical_engine/smc_engine_v2/incremental/persistence/`
-**Migration MySQL:** `migrations/20260629_smc_v2_incremental_schema.sql`
-**Status:** **NÃO em produção.** Branch `feature/smc-v2-incremental-unified`. R1→R4 PASS. R5A em andamento (MTF candle-a-candle replay — verificação final aguardando execução). MySQL staging ainda não validado (R2 = PARTIAL, sem driver no ambiente). Ver `ARQUITETURA_OFICIAL.md` §4.10.
+> **Correções (2026-07-01):** (1) diretório real é
+> `technical_engine/smc_engine_v3/incremental/persistence/` — `smc_engine_v2/`
+> contém apenas `__init__.py` (16 linhas), sem código próprio; nomes internos
+> (`smc_v2_*`) são herança de naming, não indicam localização real. (2) Status
+> avançou significativamente: o plano
+> `PLANO_MESTRE_AUDITORIA_CORRECAO_VALIDACAO_SMC_V3_COM_CSVS_REAIS_WINFUT_2021_2026.md`
+> (fases R0-R22) validou este motor end-to-end com dados reais de WINFUT
+> (2021-2026), 2.103 testes de regressão, restart idempotente e checkpoint/resume
+> confirmados com dados reais (não apenas sintéticos). Decisão formal:
+> `SMC_V3_APPROVED_WITH_ACCEPTED_LIMITATIONS` — ainda shadow-only. (3) o pipeline
+> BATCH (não este motor incremental) foi auditado separadamente e confirmado
+> **não-causal** (look-ahead em swings.py/fvg.py) — ver
+> `Sistema VPS/Relatorios/RELATORIO_AUDITORIA_LOOKAHEAD_PIPELINE_BATCH_PRODUCAO.md`.
+
+**Diretório:** `technical_engine/smc_engine_v3/incremental/persistence/`
+**Migration MySQL:** `migrations/20260629_smc_v2_incremental_schema.sql` (nome do arquivo preserva naming histórico)
+**Status:** **NÃO em produção** (shadow-only). Branch `feature/smc-v3-causal-rebuild-real-data`. R1→R4 PASS (herdado) + validação completa R0-R22 (2026-07-01): persistência validada com dados reais (restart idempotente, checkpoint/resume com hash idêntico, detecção de conflito). MySQL staging ainda não validado (sem driver no ambiente de desenvolvimento). Ver `ARQUITETURA_OFICIAL.md` §4.11.
 
 Schema com IDs SHA-256 determinísticos, escrita atômica por tick (SAVEPOINT), FK com `ON DELETE CASCADE`, e detecção de conflito (mesmo ID + payload diferente → `PersistenceConflictError`; nunca `INSERT OR IGNORE`):
 
@@ -362,10 +412,24 @@ Schema com IDs SHA-256 determinísticos, escrita atômica por tick (SAVEPOINT), 
 > era publicado como `StructureEmission`, causando `FOREIGN KEY constraint failed`
 > na tabela `smc_v2_structure_events`. Fix: adicionado `_emit_anchor_structure()`
 > que emite o âncora com `structure_type="FIBONACCI_ANCHOR"` antes de qualquer
-> evento que o referencie. O conjunto de `structure_type` válidos em
-> `smc_v2_structures` agora inclui: `FVG`, `ORDER_BLOCK`, `BOS`, `CHOCH`,
-> `LIQUIDITY`, `BPR`, `SWING`, `SESSION`, `PDH`, `PDL`, **`FIBONACCI_ANCHOR`**.
-> Arquivo: `incremental/components/retracements.py`.
+> evento que o referencie. Arquivo: `incremental/components/retracements.py`.
+
+> **Conjunto real de `structure_type` (confirmado 2026-07-01 via execução em
+> dados reais, plano R0-R22):** `SWING_HIGH`, `SWING_LOW`, `BOS_BULLISH`,
+> `BOS_BEARISH`, `CHOCH_BULLISH`, `CHOCH_BEARISH`, `WICK_SWEEP_HIGH`,
+> `WICK_SWEEP_LOW`, `PDH`, `PDL`, `FIBONACCI_ANCHOR`, `FIBO_LEVEL`,
+> `DEALING_RANGE` (Premium/Equilibrium/Discount, adicionado na Fase R8),
+> `BUYSIDE_LIQUIDITY`, `SELLSIDE_LIQUIDITY`, `FVG_BULLISH`, `FVG_BEARISH`,
+> `IFVG_BULLISH`, `IFVG_BEARISH` (Inverse FVG, adicionado na Fase R10),
+> `BPR_BULLISH`, `BPR_BEARISH`, `OB_BULLISH`, `OB_BEARISH`, `SESSION_OPEN`,
+> `SESSION_CLOSE`. Eventos de lifecycle incluem tipos além de
+> `AVAILABLE`/`TOUCHED`/`PARTIALLY_FILLED`/`MITIGATED`: `SWEPT`, `SUPERSEDED`,
+> `CE_REACHED` (Consequent Encroachment, FVG), `MEMBER_ADDED` (merge de
+> EqualLevelCluster, Liquidity), `TOUCH`/`WICK_SWEEP`/`CLOSE_THROUGH`/
+> `GAP_THROUGH`/`RECLAIM` (PDH/PDL), `ZONE_CHANGED` (Premium/Discount,
+> Retracement), `ANCHOR_CHANGED`. Ver relatórios individuais em
+> `Sistema VPS/Relatorios/SMC_ENGINE_V3_REAL_DATA_VALIDATION/` (R5-R13) para
+> evidência de cada tipo com dados reais.
 
 #### R3 — Integração Opportunity Engine (staging)
 

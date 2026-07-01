@@ -1,0 +1,267 @@
+[
+  {
+    "file": "WIN$_Daily_202106220000_202606190000.csv",
+    "timeframe": "Daily",
+    "size_bytes": 73564,
+    "size_mb": 0.07,
+    "separator": "TAB",
+    "encoding": "utf-8-sig",
+    "columns": [
+      "DATE",
+      "OPEN",
+      "HIGH",
+      "LOW",
+      "CLOSE",
+      "TICKVOL",
+      "VOL",
+      "SPREAD"
+    ],
+    "has_time_column": false,
+    "n_lines_total": 1247,
+    "n_candles": 1246,
+    "first_candle": {
+      "timestamp": "2021.06.22",
+      "open": "220256",
+      "high": "220281",
+      "low": "217823",
+      "close": "219993"
+    },
+    "last_candle": {
+      "timestamp": "2026.06.19",
+      "open": "171700",
+      "high": "171945",
+      "low": "170730",
+      "close": "171645"
+    },
+    "period_start": "2021.06.22",
+    "period_end": "2026.06.19"
+  },
+  {
+    "file": "WIN$_H1_202106220900_202606191800.csv",
+    "timeframe": "H1",
+    "size_bytes": 790556,
+    "size_mb": 0.75,
+    "separator": "TAB",
+    "encoding": "utf-8-sig",
+    "columns": [
+      "DATE",
+      "TIME",
+      "OPEN",
+      "HIGH",
+      "LOW",
+      "CLOSE",
+      "TICKVOL",
+      "VOL",
+      "SPREAD"
+    ],
+    "has_time_column": true,
+    "n_lines_total": 12019,
+    "n_candles": 12018,
+    "first_candle": {
+      "timestamp": "2021.06.22 09:00:00",
+      "open": "220256",
+      "high": "220281",
+      "low": "219086",
+      "close": "219383"
+    },
+    "last_candle": {
+      "timestamp": "2026.06.19 18:00:00",
+      "open": "171360",
+      "high": "171925",
+      "low": "171350",
+      "close": "171645"
+    },
+    "period_start": "2021.06.22 09:00:00",
+    "period_end": "2026.06.19 18:00:00"
+  },
+  {
+    "file": "WIN$_H4_202106220800_202606191600.csv",
+    "timeframe": "H4",
+    "size_bytes": 249077,
+    "size_mb": 0.24,
+    "separator": "TAB",
+    "encoding": "utf-8-sig",
+    "columns": [
+      "DATE",
+      "TIME",
+      "OPEN",
+      "HIGH",
+      "LOW",
+      "CLOSE",
+      "TICKVOL",
+      "VOL",
+      "SPREAD"
+    ],
+    "has_time_column": true,
+    "n_lines_total": 3734,
+    "n_candles": 3733,
+    "first_candle": {
+      "timestamp": "2021.06.22 08:00:00",
+      "open": "220256",
+      "high": "220281",
+      "low": "217823",
+      "close": "218238"
+    },
+    "last_candle": {
+      "timestamp": "2026.06.19 16:00:00",
+      "open": "171660",
+      "high": "171925",
+      "low": "171250",
+      "close": "171645"
+    },
+    "period_start": "2021.06.22 08:00:00",
+    "period_end": "2026.06.19 16:00:00"
+  },
+  {
+    "file": "WIN$_M15_202106220900_202606191815.csv",
+    "timeframe": "M15",
+    "size_bytes": 2996067,
+    "size_mb": 2.86,
+    "separator": "TAB",
+    "encoding": "utf-8-sig",
+    "columns": [
+      "DATE",
+      "TIME",
+      "OPEN",
+      "HIGH",
+      "LOW",
+      "CLOSE",
+      "TICKVOL",
+      "VOL",
+      "SPREAD"
+    ],
+    "has_time_column": true,
+    "n_lines_total": 46420,
+    "n_candles": 46419,
+    "first_candle": {
+      "timestamp": "2021.06.22 09:00:00",
+      "open": "220256",
+      "high": "220281",
+      "low": "219713",
+      "close": "219722"
+    },
+    "last_candle": {
+      "timestamp": "2026.06.19 18:15:00",
+      "open": "171590",
+      "high": "171925",
+      "low": "171490",
+      "close": "171645"
+    },
+    "period_start": "2021.06.22 09:00:00",
+    "period_end": "2026.06.19 18:15:00"
+  },
+  {
+    "file": "WIN$_M1_202106220900_202606191824.csv",
+    "timeframe": "M1",
+    "size_bytes": 42874985,
+    "size_mb": 40.89,
+    "separator": "TAB",
+    "encoding": "utf-8-sig",
+    "columns": [
+      "DATE",
+      "TIME",
+      "OPEN",
+      "HIGH",
+      "LOW",
+      "CLOSE",
+      "TICKVOL",
+      "VOL",
+      "SPREAD"
+    ],
+    "has_time_column": true,
+    "n_lines_total": 689574,
+    "n_candles": 689573,
+    "first_candle": {
+      "timestamp": "2021.06.22 09:00:00",
+      "open": "220256",
+      "high": "220281",
+      "low": "220188",
+      "close": "220188"
+    },
+    "last_candle": {
+      "timestamp": "2026.06.19 18:24:00",
+      "open": "171865",
+      "high": "171865",
+      "low": "171630",
+      "close": "171645"
+    },
+    "period_start": "2021.06.22 09:00:00",
+    "period_end": "2026.06.19 18:24:00"
+  },
+  {
+    "file": "WIN$_M2_202106220900_202606191824.csv",
+    "timeframe": "M2",
+    "size_bytes": 21692651,
+    "size_mb": 20.69,
+    "separator": "TAB",
+    "encoding": "utf-8-sig",
+    "columns": [
+      "DATE",
+      "TIME",
+      "OPEN",
+      "HIGH",
+      "LOW",
+      "CLOSE",
+      "TICKVOL",
+      "VOL",
+      "SPREAD"
+    ],
+    "has_time_column": true,
+    "n_lines_total": 345467,
+    "n_candles": 345466,
+    "first_candle": {
+      "timestamp": "2021.06.22 09:00:00",
+      "open": "220256",
+      "high": "220281",
+      "low": "219857",
+      "close": "219857"
+    },
+    "last_candle": {
+      "timestamp": "2026.06.19 18:24:00",
+      "open": "171865",
+      "high": "171865",
+      "low": "171630",
+      "close": "171645"
+    },
+    "period_start": "2021.06.22 09:00:00",
+    "period_end": "2026.06.19 18:24:00"
+  },
+  {
+    "file": "WIN$_M5_202106220900_202606191820.csv",
+    "timeframe": "M5",
+    "size_bytes": 8785328,
+    "size_mb": 8.38,
+    "separator": "TAB",
+    "encoding": "utf-8-sig",
+    "columns": [
+      "DATE",
+      "TIME",
+      "OPEN",
+      "HIGH",
+      "LOW",
+      "CLOSE",
+      "TICKVOL",
+      "VOL",
+      "SPREAD"
+    ],
+    "has_time_column": true,
+    "n_lines_total": 137999,
+    "n_candles": 137998,
+    "first_candle": {
+      "timestamp": "2021.06.22 09:00:00",
+      "open": "220256",
+      "high": "220281",
+      "low": "219857",
+      "close": "219908"
+    },
+    "last_candle": {
+      "timestamp": "2026.06.19 18:20:00",
+      "open": "171735",
+      "high": "171925",
+      "low": "171630",
+      "close": "171645"
+    },
+    "period_start": "2021.06.22 09:00:00",
+    "period_end": "2026.06.19 18:20:00"
+  }
+]

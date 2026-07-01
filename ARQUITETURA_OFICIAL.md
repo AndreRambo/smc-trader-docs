@@ -1,6 +1,30 @@
 # ARQUITETURA OFICIAL — SMC Trader System 7.0
 
-> Atualizado: 2026-06-30 | **SMC Engine V3 — CANONICAL_V3 ativo.** 8 engines batch refatoradas (sessions.py, swings.py, structure.py, previous_high_low.py, retracements.py, liquidity.py, order_blocks.py, fvg.py) com detection_definition="CANONICAL_V3" como padrão. Temporal window, SHA-256 IDs, guardrails shadow_only. Backward compat LEGACY_V2 preservada. Incremental track (PHASE_08+R1-R5A) mantido como track paralelo. PR merged. Ver §4.10.
+> **Atualizado: 2026-07-01 | CORREÇÃO CRÍTICA:** auditoria confirmou que o pipeline
+> batch "CANONICAL_V3" (§4.10) **não é causal** — look-ahead estrutural confirmado
+> em `swings.py` (idêntico nos caminhos LEGACY_V2 e CANONICAL_V3) e `fvg.py`
+> (parâmetro `detection_definition` vestigial, sem efeito na detecção). É esse
+> pipeline que roda em produção hoje via `run_b3.py`/`infra/sync_v2.py`. O motor
+> realmente causal e validado (2.103 testes, dados reais WINFUT 2021-2026,
+> `future_data_violations=0`) é o `incremental/` (§4.11) — **shadow-only, ainda
+> não substituiu o pipeline batch em produção**. Ver
+> `Sistema VPS/Relatorios/RELATORIO_AUDITORIA_LOOKAHEAD_PIPELINE_BATCH_PRODUCAO.md`
+> e `Sistema VPS/Relatorios/SMC_ENGINE_V3_REAL_DATA_VALIDATION/RELATORIO_FINAL_SMC_V3_REAL_DATA_VALIDATION.md`.
+>
+> **Atualizado: 2026-07-01 (mesmo dia) | CORREÇÃO IMPLEMENTADA (opt-in, default inalterado):**
+> a correção real do look-ahead acima foi implementada de forma aditiva — novas
+> funções `swings.to_causal_swings_view()` e `fvg.to_causal_fvg_view()` reindexam
+> pivôs/FVGs para sua linha de disponibilidade causal; `pipeline.py` ganhou o
+> parâmetro `causal_swings_fvg: bool = False` para consumi-las em
+> order_blocks/structure/liquidity/retracements/bpr. **Default `False` preserva
+> o comportamento de produção exatamente como está** — nenhuma mudança de
+> comportamento até decisão explícita de ativar a flag. Também corrigido,
+> incondicionalmente: metadado `confirmed_index`/`available_index` em
+> `fvg.calculate_fvg_records()` (apontava para o candle errado). 164 testes
+> passando (7 novos), zero regressões. Ver §9 de
+> `RELATORIO_AUDITORIA_LOOKAHEAD_PIPELINE_BATCH_PRODUCAO.md` para detalhes.
+>
+> Histórico: 2026-06-30 | **SMC Engine V3 — CANONICAL_V3 ativo** (rótulo de classificação/lifecycle, ver correção acima). 8 engines batch refatoradas (sessions.py, swings.py, structure.py, previous_high_low.py, retracements.py, liquidity.py, order_blocks.py, fvg.py) com detection_definition="CANONICAL_V3" como padrão. Temporal window, SHA-256 IDs, guardrails shadow_only. Backward compat LEGACY_V2 preservada. Incremental track (PHASE_08+R1-R5A) mantido como track paralelo. PR merged. Ver §4.10.
 >
 > Histórico: 2026-06-30 | SMC Engine V2 Incremental Unified — remediação pré-cutover R1→R4 concluída + R5A-MTF em andamento.
 >
@@ -1086,9 +1110,35 @@ scan_once(persist=False)
 
 ### 4.10 SMC Engine V3 — Batch Canônico (`smc_engine_v3/`)
 
+> ⚠️ **CORREÇÃO (2026-07-01):** este pipeline batch é o que roda em produção hoje
+> (via `run_b3.py` → `infra/sync_v2.py` → `pipeline.py:run_smc_engine_v2_local()`),
+> mas **não é causal** — auditoria confirmou look-ahead estrutural em `swings.py`
+> (`shift(-half_sl)`, presente **igualmente** nos caminhos `LEGACY_V2` e
+> `CANONICAL_V3` — a refatoração de 2026-06-30 nunca corrigiu o algoritmo central
+> de detecção de pivô) e em `fvg.py` (`shift(-1)`, função única sem ramificação
+> por `detection_definition` — o parâmetro é vestigial nesse arquivo). A
+> contaminação se propaga transitivamente para Order Block, Structure/BOS-CHOCH,
+> Liquidity e Retracements, que consomem o `_swings_df` compartilhado. As
+> melhorias descritas abaixo (EQH/EQL SUPERSEDED, lifecycle 10-state, etc.) são
+> reais, mas **não implicam correção causal** — o rótulo "CANONICAL_V3" refere-se
+> à qualidade de classificação, não à ausência de look-ahead. Ver
+> `Sistema VPS/Relatorios/RELATORIO_AUDITORIA_LOOKAHEAD_PIPELINE_BATCH_PRODUCAO.md`
+> para a auditoria completa. O motor causal real e validado (2.103 testes, dados
+> reais WINFUT 2021-2026) é o `incremental/` descrito em §4.11 — **shadow-only,
+> ainda não substituiu este pipeline em produção**.
+>
+> ⚠️ **CORREÇÃO IMPLEMENTADA (2026-07-01, opt-in):** `swings.to_causal_swings_view()`
+> e `fvg.to_causal_fvg_view()` foram adicionadas — reindexam pivôs/FVGs para sua
+> linha de disponibilidade causal. `pipeline.py` ganhou `causal_swings_fvg: bool
+> = False` para consumi-las em OB/Structure/Liquidity/Retracements/BPR **sem
+> alterar `swings.py`/`fvg.py` originais nem os 5 arquivos consumidores**.
+> Default `False` — comportamento de produção **inalterado** até decisão
+> explícita de ativar. Ver §9 do relatório de auditoria acima para detalhes e
+> validação (164 testes, zero regressões).
+
 **Objetivo:** correção algorítmica das 8 engines batch seguindo o plano mestre de orquestração e 8 planos operacionais individuais. Alvo: `technical_engine/smc_engine_v3/` (arquivos planos). `shadow_only=True` em todo o runtime.
 
-**Status:** `CANONICAL_V3` — 8 engines refatoradas com detecção corrigida. Branch `feature/smc-v2-incremental-unified` (merged → main). PR #1.
+**Status:** `CANONICAL_V3` — 8 engines refatoradas com melhorias de classificação/lifecycle. **Detecção central de Swing e FVG permanece não-causal por padrão** — correção causal disponível via flag opt-in `causal_swings_fvg=True` (ver aviso acima), ainda não ativada por padrão. Branch `feature/smc-v2-incremental-unified` (merged → main). PR #1.
 
 **Arquivos V3 (alvo único):**
 
@@ -1117,11 +1167,33 @@ scan_once(persist=False)
 
 **Pacotes órfãos arquivados:** `technical_engine/_archived_v3_packages_unused/` — código morto do M0-G10 (zero consumidores reais).
 
-### 4.11 SMC Engine V2 Incremental Unified (`smc_engine_v2/incremental/`)
+### 4.11 SMC Engine V3 Incremental Unified (`technical_engine/smc_engine_v3/incremental/`)
 
-**Objetivo:** engine SMC única para live + replay + backtest, O(1) por candle, causal (`available_at` guard), com IDs SHA-256 determinísticos para estruturas/eventos/checkpoints. Substituirá o pipeline batch `STABLE_FROZEN_V2` por cutover controlado (ainda **NÃO** em produção).
+> **Correção de path (2026-07-01):** este motor vive em
+> `technical_engine/smc_engine_v3/incremental/`, não em `smc_engine_v2/incremental/`
+> — `technical_engine/smc_engine_v2/` contém apenas um `__init__.py` de 16 linhas,
+> sem lógica própria. Nomes de função/classe internos ainda carregam "v2" por
+> herança histórica (`SmcEngineV2Incremental`, tabelas `smc_v2_*`), mas o código
+> vive fisicamente sob o namespace `smc_engine_v3`.
 
-**Status:** `PHASE_08_COMPLETE` + remediação pré-cutover **R1→R4 PASS** + **R5A em andamento**. Branch `feature/smc-v2-incremental-unified`. Spec: `docs/SMC_ENGINE_V2_INCREMENTAL_UNIFIED_SPEC/`.
+**Objetivo:** engine SMC única para live + replay + backtest, O(1) por candle, causal (`available_at` guard), com IDs SHA-256 determinísticos para estruturas/eventos/checkpoints. Substituirá o pipeline batch (§4.10, confirmado não-causal) por cutover controlado (ainda **NÃO** em produção).
+
+**Status (atualizado 2026-07-01):** validado end-to-end pelo plano
+`PLANO_MESTRE_AUDITORIA_CORRECAO_VALIDACAO_SMC_V3_COM_CSVS_REAIS_WINFUT_2021_2026.md`
+(fases R0-R22, branch `feature/smc-v3-causal-rebuild-real-data`) — 9 bugs reais
+corrigidos com evidência em dados reais (sessão nunca fechava, BOS/CHOCH sem
+retirada de nível, 2× aliasing em snapshot/checkpoint, EqualLevelCluster ausente,
+2× memória sem limite, timestamps/candle_id inconsistentes em PDH/PDL), 2.103
+testes de regressão, `future_data_violations=0` e `prefix_divergence_count=0`
+confirmados em 12.018 candles reais de WINFUT (2021-2026) via replay em 5 modos.
+Decisão formal: `SMC_V3_APPROVED_WITH_ACCEPTED_LIMITATIONS` — P1s abertos
+(StructureLegV3 formal, consumo cruzado de Liquidity, decisão de produto sobre
+`require_structure_break` em OB, M1 não validado em escala completa) exigem
+revisão do dono do produto antes do cutover de produção. Relatório final:
+`Sistema VPS/Relatorios/SMC_ENGINE_V3_REAL_DATA_VALIDATION/RELATORIO_FINAL_SMC_V3_REAL_DATA_VALIDATION.md`.
+**Opportunity Backtest ainda NÃO autorizado.**
+
+**Status anterior (histórico, pré-2026-07-01):** `PHASE_08_COMPLETE` + remediação pré-cutover **R1→R4 PASS** + **R5A em andamento**. Branch `feature/smc-v2-incremental-unified`. Spec: `docs/SMC_ENGINE_V2_INCREMENTAL_UNIFIED_SPEC/`.
 
 | Camada | Componente | Notas |
 |--------|-----------|-------|

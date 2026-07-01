@@ -1,0 +1,8 @@
+{
+  "missing_timestamps": [],
+  "duplicate_event_ids": [],
+  "duplicate_terminal_events": [],
+  "events_per_broken_level_violations": [],
+  "total_structures": 24113,
+  "total_events": 46959
+}
