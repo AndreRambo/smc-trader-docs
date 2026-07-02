@@ -1,5 +1,23 @@
 # ARQUITETURA OFICIAL — SMC Trader System 7.0
 
+> **Atualizado: 2026-07-02 | CORREÇÃO CIRÚRGICA — coleta real + cutover:**
+> auditoria completa do documento contra o sistema real (`Sistema VPS/
+> Relatorios/AUDITORIA_ARQUITETURA_OFICIAL_VS_REALIDADE_2026-07-02.md`)
+> encontrou drift real: (1) `run_b3.py`/`run_forex.py` (§3.1, §4.8, §9, §10)
+> descritos como coletores ativos — na verdade `smc-b3-robot.service` nem está
+> instalado e `smc-forex-robot.service` está inativo; o coletor real é
+> `services/asset_collector/` + `services/candle_event_processor/` (ver
+> §3.1-REAL); (2) `technical_engine/smc_engine_v2/` (§4.1, §10) descrito como
+> "STABLE_FROZEN_V2" ativo — na verdade é um stub que só levanta `ImportError`,
+> congelado em backup desde a Fase M-1C; o código real vive em `smc_engine/`
+> (§4.10/§4.11); (3) adicionada §4.11-A documentando o cutover do motor
+> incremental como principal (Fase S + `incremental/live/`, validado contra
+> MySQL real e 3 meses de dados reais, zero erros). **Decisão operacional
+> vigente:** coleta ao vivo pausada por decisão do produto
+> (`smc-asset-collector@WINFUT.service` desativado em 2026-07-02) — todo
+> cálculo roda sobre CSV local enquanto essa decisão vigorar.
+> `smc-b3-robot.service`/`smc-forex-robot.service` não devem ser reativados.
+>
 > **Atualizado: 2026-07-01 | CORREÇÃO CRÍTICA:** auditoria confirmou que o pipeline
 > batch "CANONICAL_V3" (§4.10) **não é causal** — look-ahead estrutural confirmado
 > em `swings.py` (idêntico nos caminhos LEGACY_V2 e CANONICAL_V3) e `fvg.py`
@@ -43,12 +61,31 @@ SMC Trader System 7.0 e uma plataforma Python de analise tecnica multi-timeframe
 - **MTF 3 Camadas**: gate HTF + confluencia ponderada + alinhamento espacial
 - **Estudo Profissional**: template narrativo onde a LLM e REDATORA, nunca motor
 
-**Principio central**: `shadow_only=True`. Toda evolucao ocorre em tabelas `*_shadow`.
-LLM nunca calcula zonas, score, probabilidade ou decisao. O motor e 100% deterministico.
+**Principio central**: `shadow_only=True` — guardrail comportamental, não convenção de nomenclatura:
+nenhuma tabela do motor alimenta execução real de ordens, `can_promote_trade=False` sempre,
+nada é promovido automaticamente. Historicamente isso era 1:1 com tabelas sufixadas `*_shadow`;
+desde 2026-07-02 o schema nativo do motor incremental (`smc_v2_structures`, `smc_v2_structure_events`,
+`smc_v2_engine_runs`, etc. — §4.11-A) não usa mais esse sufixo, mas o guardrail permanece idêntico:
+essas tabelas também não alimentam trade real. LLM nunca calcula zonas, score, probabilidade ou
+decisao. O motor e 100% deterministico.
 
 ---
 
 ## 2. Camadas do Sistema
+
+> **Reescrito 2026-07-02** para refletir o sistema real (ver auditoria
+> `Sistema VPS/Relatorios/AUDITORIA_ARQUITETURA_OFICIAL_VS_REALIDADE_2026-07-02.md`).
+> Ordem causal de baixo para cima (coleta → motor → dados → dashboards/site);
+> os dashboards aparecem no topo só porque são o ponto de leitura do usuário,
+> não porque são a origem do dado.
+>
+> **Estado operacional em 2026-07-02:** coleta ao vivo PAUSADA por decisão do
+> produto (`smc-asset-collector@WINFUT.service` e todos os serviços
+> downstream inativos). Todo o processamento roda sobre **CSV local**
+> (`data/csv_import/canonical/` → `tools/fase_s_simulacao/`) enquanto essa
+> decisão vigorar. `smc-b3-robot.service`/`smc-forex-robot.service` (robôs
+> antigos) permanecem parados e **não devem ser reativados** — foram
+> superados pela arquitetura `services/` abaixo.
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
@@ -68,21 +105,27 @@ LLM nunca calcula zonas, score, probabilidade ou decisao. O motor e 100% determi
 └────────────────────────┬───────────────────────────────────────────┘
                          │
 ┌────────────────────────▼───────────────────────────────────────────┐
-│ TECHNICAL ENGINE (shadow-only)                                     │
+│ TECHNICAL ENGINE (guardrail: can_promote_trade=False, ver §8)      │
 │                                                                    │
-│ ┌─ SMC ENGINE V2 (STABLE_FROZEN_V2) ───────────────────────────┐  │
-│ │ smc_engine_v2/pipeline.py    Pipeline integrado (10 passos)   │  │
-│ │ smc_engine_v2/fvg.py         Fair Value Gaps                 │  │
-│ │ smc_engine_v2/order_blocks.py Order Blocks (prev+wick, qual)  │  │
-│ │ smc_engine_v2/structure.py   BOS/CHOCH (close_break)         │  │
-│ │ smc_engine_v2/liquidity.py   Liquidity (ATR-based cluster)    │  │
-│ │ smc_engine_v2/bpr.py         Balanced Price Ranges           │  │
-│ │ smc_engine_v2/swings.py      Swings                           │  │
-│ │ smc_engine_v2/sessions.py    Sessions (London/B3/NY/Asia)     │  │
-│ │ smc_engine_v2/retracements.py Retracements %                  │  │
-│ │ smc_engine_v2/previous_high_low.py PDH/PDL                    │  │
-│ │ smc_engine_v2/persistence.py 10 tabelas shadow                │  │
-│ │ smc_engine_v2/config.py      OBQualityConfig/BPRQualityConfig │  │
+│ ┌─ SMC ENGINE V3 — BATCH CANÔNICO (technical_engine/smc_engine/, §4.10)│
+│ │ pipeline.py    run_smc_engine_v2_local() — orquestrador 10 passos│  │
+│ │ fvg.py / order_blocks.py / structure.py / liquidity.py / bpr.py │  │
+│ │ swings.py / sessions.py / retracements.py / previous_high_low.py│  │
+│ │ persistence.py  persist_smc_engine_v2_run() → 9 tabelas legadas│  │
+│ │ ⚠ não-causal por padrão (look-ahead em swings/fvg); correção   │  │
+│ │   opt-in `causal_swings_fvg=True`, default False. Ver §4.10.   │  │
+│ │ (smc_engine_v2/ antigo: CONGELADO EM BACKUP, raise ImportError  │  │
+│ │  — não é código vivo, ver §4.1)                                 │  │
+│ └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│ ┌─ SMC ENGINE V3 INCREMENTAL — motor causal (incremental/, §4.11)┐  │
+│ │ engine.py  SmcEngineV2Incremental — candle a candle, O(1),     │  │
+│ │            causal (available_at guard), snapshot/restore       │  │
+│ │ components/  swing, fvg, ob, bos_choch, liquidity, bpr,        │  │
+│ │              retracements, sessions, previous_high_low          │  │
+│ │ incremental/live/  cutover p/ produção (§4.11-A) — código       │  │
+│ │   pronto e validado (Fase S + MySQL real), NÃO ativado como    │  │
+│ │   serviço systemd ainda                                        │  │
 │ └──────────────────────────────────────────────────────────────┘  │
 │                                                                    │
 │ ┌─ STUDY GATEWAY CANONICAL TRUTH V2 ───────────────────────────┐  │
@@ -90,7 +133,12 @@ LLM nunca calcula zonas, score, probabilidade ou decisao. O motor e 100% determi
 │ │ smc_v2_adapter.py      SMC persisted → Envelope + Readiness  │  │
 │ │ confluence_v2.py       6 fontes deterministicas + MTF ponder  │  │
 │ │ context_states.py      Elliott/Wyckoff helper + RiskConfig    │  │
-│ │ forward_runner.py      Forward shadow gateway (6L)            │  │
+│ │ forward_runner.py      Forward shadow gateway (6L) — produção │  │
+│ │                        disparada por timer 15min (systemd     │  │
+│ │                        timer), não candle a candle             │  │
+│ │ incremental_opportunity_bridge.py  cadeia real (Elliott/       │  │
+│ │   Wyckoff+envelope+risk+scanner) disparada CANDLE A CANDLE —   │  │
+│ │   usada pelo cutover (§4.11-A), ainda não em produção          │  │
 │ └──────────────────────────────────────────────────────────────┘  │
 │                                                                    │
 │ ┌─ RISK MANAGEMENT V2 ─────────────────────────────────────────┐  │
@@ -123,14 +171,46 @@ LLM nunca calcula zonas, score, probabilidade ou decisao. O motor e 100% determi
 │ │ asset_resolver.py                Ticker/alias centralizado   │  │
 │ └──────────────────────────────────────────────────────────────┘  │
 └────────────────────────┬───────────────────────────────────────────┘
+                         │ consome candles fechados via outbox (dispatcher)
+┌────────────────────────▲───────────────────────────────────────────┐
+│ COLETA / DISPATCH (services/) — real, ver §3.1-REAL                │
+│                                                                    │
+│ MT5 (B3:11000/Forex:11001, RPyC/Wine) → smc-mt5-b3-terminal.service│
+│                                          smc-mt5-fx-terminal.service│
+│   │                                                                │
+│   ▼                                                                │
+│ services/asset_collector/  (smc-asset-collector@<SYMBOL>.service,  │
+│   templated por ativo) → INSERT market_candles + publica evento    │
+│   no outbox `technical_engine_candle_events`                       │
+│   │                                                                │
+│   ▼                                                                │
+│ services/candle_event_processor/  (smc-candle-event-processor.     │
+│   service) → consome outbox (claim FOR UPDATE SKIP LOCKED) →       │
+│   roteia por timeframe → chama SMC ENGINE V3 (batch, acima) →      │
+│   só M5 continua para Study/Risk/Scanner                           │
+│                                                                    │
+│ ⚠ ESTADO ATUAL (2026-07-02): TODOS os serviços acima estão         │
+│ INATIVOS (pausados por decisão do produto). Processamento hoje     │
+│ roda 100% sobre CSV local via tools/fase_s_simulacao/ + o cutover  │
+│ do motor incremental (§4.11-A) — não sobre coleta ao vivo.         │
+│ run_b3.py/run_forex.py (mecanismo histórico, §4.8) NÃO reativar.   │
+└────────────────────────┬───────────────────────────────────────────┘
                          │
 ┌────────────────────────▼───────────────────────────────────────────┐
 │ DATA LAYER (MySQL VPS)                                             │
-│   market_candles                    ← Robos B3/Forex               │
-│   technical_engine_smc_v2_*_shadow  ← 10 tabelas SMC V2           │
+│   market_candles                    ← services/asset_collector     │
+│                                        (ou reload manual via CSV,   │
+│                                        ver §4.11-A, enquanto pausado)│
+│   technical_engine_smc_v2_*_shadow  ← 9 tabelas SMC V3 (batch,     │
+│                                        nomes legados "v2")          │
+│   smc_v2_structures / smc_v2_structure_events / smc_v2_checkpoints │
+│     / smc_v2_active_stream_versions / smc_v2_engine_runs ← schema  │
+│     nativo do motor incremental (aplicado 2026-07-02, cutover      │
+│     ainda não ativado como serviço)                                │
 │   technical_engine_study_*_shadow   ← Replay runs + samples        │
 │   technical_engine_opportunity_*_shadow ← Signals/Alerts/Outbox   │
 │   technical_engine_operational_plans_shadow ← OperationalPlanV2   │
+│   technical_engine_candle_events    ← outbox coleta→dispatch       │
 │   winfut_lr_v4_*                   ← 18 tabelas Live-Replay V4    │
 └────────────────────────┬───────────────────────────────────────────┘
                          │
@@ -187,7 +267,15 @@ LLM nunca calcula zonas, score, probabilidade ou decisao. O motor e 100% determi
 
 ### 3.1 Coleta → Persistencia
 
+> **Atualizado 2026-07-02:** o texto abaixo (`run_b3.py`/`run_forex.py` via
+> `smc-b3-robot.service`/`smc-forex-robot.service`) descreve um mecanismo de
+> coleta que **não é o que roda hoje**. Confirmado ao vivo (`systemctl`):
+> `smc-b3-robot.service` nem está instalado; `smc-forex-robot.service` está
+> inativo. Preservado abaixo só como referência histórica do desenho antigo —
+> ver o fluxo REAL logo em seguida.
+
 ```
+[HISTÓRICO — não reflete o mecanismo em uso]
 MT5 (B3:11000 / Forex:11001)
   │ RPyC bridge (Wine)
   ▼
@@ -216,11 +304,56 @@ run_b3.py / run_forex.py (loop 60s, 6 TFs por ativo)
               Dashboard lê da shadow em vez de recomptar por request (~30×/min economizados)
 ```
 
-### 3.2 Estudo Canonico
+#### 3.1-REAL — Arquitetura de serviços atual (services/)
 
 ```
-SMC V2 persisted + Elliott + Wyckoff + Contextual
+MT5 (B3:11000 / Forex:11001)
+  │ RPyC bridge (Wine) — smc-mt5-b3-terminal.service / smc-mt5-fx-terminal.service
+  ▼
+services/asset_collector/ (smc-asset-collector@<SYMBOL>.service, templated por ativo)
+  │  cli.py → worker.py → candle_fetcher.py → mt5_gateway.py → closed_candle_detector.py
+  ├─ INSERT market_candles
+  └─ event_publisher.py → publica evento no outbox technical_engine_candle_events
+                            (status=PENDING, available_at)
+                            │
+                            ▼
+services/candle_event_processor/ (smc-candle-event-processor.service)
+  │  processor.py: loop poll (POLL_IDLE_SECONDS=2.0)
+  │  repository.py: EventRepository.claim_next()
+  │    SELECT ... WHERE status='PENDING' AND available_at<=NOW(6)
+  │    ORDER BY available_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED
+  │  dispatcher.py: TIMEFRAME_DISPATCH_MAP roteia por event.timeframe
+  │    (M1=no-op, M2/M5/M15/H4/D1 processam — H1 AUSENTE do mapa, gap conhecido)
+  │    _load_candles_df() → run_smc_engine_v2_local() → persist_smc_engine_v2_run()
+  │    (só _handle_m5 continua):
+  │      → Study Gateway (build_context_states + build_technical_truth_envelope_v2)
+  │      → Risk Management (build_operational_plan)
+  │      → Opportunity Scanner (_run_scanner) → sync Laravel (HMAC POST)
   │
+  └─ mark_completed(event_id) / mark_failed(event_id, backoff)
+```
+
+**Estado operacional em 2026-07-02** (confirmado via `systemctl is-active`): coleta pausada por decisão do produto — todos os cálculos passaram a rodar sobre CSV local (ver §4.11-A). `smc-asset-collector@WINFUT.service`, `smc-candle-event-processor.service`, `smc-study-forward-shadow.timer`, `smc-opportunity-scanner.service` e `smc-opportunity-notifier.service` estão todos **inativos**. Os terminais MT5 (`smc-mt5-b3-terminal`, `smc-mt5-fx-terminal`) permanecem ativos (bridge Wine/RPyC, sem consumidor downstream no momento). `smc-b3-robot.service`/`smc-forex-robot.service` (mecanismo histórico acima) **não devem ser reativados** — superados pela arquitetura `services/` acima.
+
+### 3.2 Estudo Canonico
+
+> **Correção 2026-07-02:** "SMC V2 persisted" é nome de função/tabela legado
+> (`smc_v2_*`), não implica que o pacote `smc_engine_v2/` exista — os dados
+> vêm de `technical_engine_smc_v2_*_shadow`, gravados pelo pipeline batch
+> real (`smc_engine/`, §4.10) ou, no cutover ainda não ativado, pelo motor
+> incremental (§4.11-A). Também há DOIS gatilhos possíveis para este fluxo,
+> hoje ambos parados (coleta pausada, §2):
+> - **Produção (histórico):** `forward_runner.py` via timer systemd
+>   (`smc-study-forward-shadow.timer`, a cada 15 min, `--mode ONCE`) — lê o
+>   SMC já persistido pelo batch, NÃO recalcula, dispara Elliott/Wyckoff +
+>   monta o envelope a cada execução do timer.
+> - **Cutover (código pronto, não ativado):** `incremental_opportunity_bridge.py`
+>   dispara este mesmo fluxo a CADA CANDLE FECHADO do timeframe base (M5),
+>   não a cada 15 min — validado na Fase S com zero erros (§4.11-A).
+
+```
+SMC persisted (technical_engine_smc_v2_*_shadow) + Elliott + Wyckoff + Contextual
+  │  gatilho: timer 15min (produção histórica) OU candle-a-candle (cutover, §4.11-A)
   ▼
 Confluence V2 (6 fontes, pesos normalizados)
   │ direction, alignment_score, evidence_count
@@ -236,12 +369,31 @@ StudyPayloadTechnicalTruthV2 → LLM REDATORA (nunca calcula numeros)
 
 ### 3.3 Risk Management (Operational)
 
+> **Correção 2026-07-02:** `build_operational_plan(envelope, candles, htf_candles=None,
+> htf_states=None)` — `htf_candles`/`htf_states` são **opcionais e, na prática, NUNCA
+> são passados** hoje: nem `forward_runner.py` (produção histórica, `_persist_operational_plan`
+> chama `build_operational_plan(envelope, candles)`) nem o cutover novo
+> (`incremental/live/runner.py`, mesma chamada sem esses parâmetros) os fornecem.
+> **Consequência real:** CAMADA 1 (Gate HTF) e CAMADA 3 (Alinhamento espacial com
+> zonas H4/M15) estão implementadas e testadas isoladamente, mas rodam sempre no
+> estado default — `htf_bias=NEUTRO` sem viés real de D1/H4, sem zonas HTF para
+> boost de quality — em qualquer execução real até hoje. Só a CAMADA 2
+> (confluência ponderada) de fato usa dado real, pois vem de dentro do próprio
+> envelope (`confluence_v2.py`), não de `htf_candles`/`htf_states` externos.
+> Ninguém decidiu isso como comportamento definitivo — é uma lacuna de wiring
+> (P1 aberto, ver `PLANO_MIGRACAO_MOTOR_CAUSAL_INCREMENTAL_PRODUCAO_UNIFICADA.md`
+> §8.2), não uma decisão de produto documentada.
+
 ```
-TechnicalTruthEnvelopeV2 + candles + htf_states
+TechnicalTruthEnvelopeV2 + candles (+ htf_candles/htf_states — opcionais,
+                                     NUNCA fornecidos em nenhuma execução real hoje)
   │
   ├── CAMADA 1: Gate HTF (D1+H4) — block/demote por vies contrario
+  │             ⚠ INATIVA NA PRÁTICA — sem htf_candles, sempre htf_bias=NEUTRO
   ├── CAMADA 2: Confluencia ponderada (H4=0.40, M15=0.35, M5=0.25)
+  │             ✓ ATIVA — usa dado já presente no envelope (confluence_v2.py)
   ├── CAMADA 3: Alinhamento espacial (zona M5 sobreposta a H4/M15 → +15 quality)
+  │             ⚠ INATIVA NA PRÁTICA — sem htf_states, sem zonas HTF pra comparar
   │
   ▼
 OperationalPlanV2:
@@ -257,23 +409,42 @@ FASE 4 → Walk-forward simulator → taxa historica de alcance (nunca "probabil
 
 ### 3.4 Opportunity Scanner → Site
 
+> **Correção 2026-07-02:**
+> - **Contagem de gates**: "10 gates" abaixo é uma contagem resumida antiga;
+>   a tabela detalhada e verificada contra `evaluator.py` em §4.4.1 lista
+>   **12 gates** numerados (inclui `stop_invalidated_by_window` como gate #1
+>   separado de `invalidated` #11, e classificação de proximidade DISTANTE
+>   como resultado, não gate). Ver §4.4.1 para a lista exata e ordem real.
+> - **`contra_htf` é efetivamente um no-op hoje**: depende de `plan.mtf_align`,
+>   que vem da CAMADA 1 de `risk_management_v2.py` — e essa camada nunca
+>   recebe `htf_candles` reais (ver correção em §3.3). Na prática
+>   `mtf_align` nunca chega a `"contra"`/`"contra_htf"`, então esse gate
+>   nunca bloqueia nada em execução real até hoje.
+> - **Estado operacional**: `smc-opportunity-scanner.service` e
+>   `smc-opportunity-notifier.service` estão INATIVOS (coleta pausada, §2).
+>   Este fluxo só roda hoje dentro do cutover/Fase S
+>   (`incremental_opportunity_bridge.py` → `evaluate_opportunity()`, com um
+>   `ScannerConfig` de replay que propositalmente desativa os gates de
+>   frescor/mercado — ver §4.11 "Gates bypassados em replay"), não em
+>   produção ao vivo.
+
 ```
 OperationalPlanV2 (M5, ACTIVE)
   + price M1 (OHLC)
   │
   ▼
-10 gates deterministicos:
-  plan_active → readiness → has_operation → entrada → ATR
-  → market_closed (B3 09-18h) → plan_too_old (10min)
-  → price_too_old (3min) → contra_htf → invalidated
-  → wrong_approach → distance > 3 ATR
+12 gates deterministicos (ver tabela completa em §4.4.1):
+  stop_invalidated_by_window → plan_not_active → readiness → has_operation
+  → missing_entry → missing_or_invalid_atr → market_closed (B3 09-18h)
+  → plan_too_old (10min) → price_too_old (3min) → contra_htf (⚠ no-op, ver acima)
+  → invalidated → wrong_approach
   │
   ├── BLOQUEADO → skip
   │
   ▼
 OpportunitySignalV1:
-  proximity (NA_ZONA/IMINENTE/PROXIMO/OBSERVANDO)
-  severity (CRITICAL/HIGH/MEDIUM/LOW)
+  proximity (NA_ZONA/IMINENTE/PROXIMO/OBSERVANDO/DISTANTE)
+  severity (CRITICAL/HIGH/MEDIUM/LOW/NONE)
   │
   ▼
 Dedup (symbol+direction+proximity+price, 15min window)
@@ -293,7 +464,27 @@ PERSIST + NOTIFY:
 
 ### 3.5 Sync VPS → Site
 
+> **Correção 2026-07-02:** `infra/sync_v2.py` **não é chamado pelo dispatcher
+> real** (`services/candle_event_processor/dispatcher.py`) — confirmado via
+> grep, nenhuma referência. É importado só por `infra/database.py`/
+> `infra/mt5_core.py` (infraestrutura da era `run_b3.py`, hoje parada) e por
+> scripts avulsos em `tools/` (uso manual/offline, não serviço). O dispatcher
+> real tem sua própria função estreita, `_sync_to_laravel()`
+> (`dispatcher.py:574`), chamada só dentro de `_handle_m5` — sincroniza
+> apenas o bundle de evidência do scanner (sinal + envelope + plano), **não**
+> o sync geral de candles/zonas/Elliott/Wyckoff descrito abaixo. Ou seja: o
+> fluxo abaixo (`sync_v2_shadow_zones`, `sync_candles`, `sync_elliott_wyckoff`)
+> está **dormente** — mesmo status operacional do `run_b3.py` (§3.1).
+>
+> **Cuidado com colisão de nomes:** `smc_v2_*` no Hostinger (10 tabelas,
+> abaixo) é a réplica das 9 tabelas legadas `technical_engine_smc_v2_*_shadow`
+> do VPS — **não tem relação nenhuma** com o schema nativo `smc_v2_structures`/
+> `smc_v2_structure_events`/`smc_v2_engine_runs`/etc. do motor incremental
+> (§4.11-A, também no VPS, aplicado 2026-07-02). São dois bancos de tabelas
+> diferentes que só coincidem no prefixo `smc_v2_`.
+
 ```
+[DORMENTE — não chamado por nenhum serviço ativo hoje, ver correção acima]
 Candles/Zones/Studies (MySQL VPS)
   │
   ▼
@@ -310,103 +501,17 @@ infra/sync_v2.py:
   │
   ▼
 maximustrade.com.br/api/sync/*
-  → sync_assets, sync_candles, sync_zones, smc_v2_* (10 tabelas replicadas)
+  → sync_assets, sync_candles, sync_zones, smc_v2_* (10 tabelas replicadas,
+    NÃO confundir com o schema nativo do motor incremental — ver acima)
 ```
 
-**Nota:** As 9 tabelas shadow do VPS (`technical_engine_smc_v2_*_shadow`) foram replicadas no Hostinger como `smc_v2_*` (10 tabelas incluindo runs). O sync envia raw rows por tabela via `/api/sync/tables/push` (HMAC protegido). Fallback automatico para `/api/sync/zones` (tabela unificada `sync_zones`) se o novo endpoint nao estiver disponivel.
+**Nota:** As 9 tabelas shadow do VPS (`technical_engine_smc_v2_*_shadow`) foram replicadas no Hostinger como `smc_v2_*` (10 tabelas incluindo runs). O sync envia raw rows por tabela via `/api/sync/tables/push` (HMAC protegido). Fallback automatico para `/api/sync/zones` (tabela unificada `sync_zones`) se o novo endpoint nao estiver disponivel. **Único caminho de sync realmente ativo hoje** (quando a coleta está ligada): `dispatcher.py::_sync_to_laravel()`, escopo estreito (só bundle de scanner alert do M5), não este fluxo geral.
 
 ---
 
 ## 4. Modulos Principais
 
-### 4.1 SMC Engine V2 (`smc_engine_v2/`)
-
-| Modulo | Componente | Testes |
-|--------|-----------|--------|
-| `pipeline.py` | Orquestrador (10 passos, swings_df compartilhado, raise_on_error) | — |
-| `fvg.py` | FVG: 3-candle imbalance, mitigation 50%, vetorizado, displacement | 38 |
-| `order_blocks.py` | OB: prev+wick, quality scoring (size+session), config-driven, **ob_subtype** (NORMAL/REJECTION/STACKED, NTSL parity) + confluência opt-in | 30 |
-| `structure.py` | BOS/CHOCH: padrao 4 swings, close_break, 62% continuacao | 20 |
-| `liquidity.py` | Liquidity: ATR-based cluster, swept detection | 10 |
-| `bpr.py` | BPR: overlap FVG bull+bear, dedup >60%, quality scoring | 12 |
-| `swings.py` | Swings: rolling window, sem forced alternation | 8 |
-| `persistence.py` | 10 tabelas shadow, load/save, latest_candle_time auto | — |
-| `config.py` | OBQualityConfig, BPRQualityConfig, SMCEngineV2Config | — |
-
-**Status**: `STABLE_FROZEN_V2` — 164 testes. Detecção congelada (calibração WINFUT_M5). O enriquecimento `ob_subtype` é **aditivo**: classifica OBs já detectados (rejeição por geometria de pavio, stacked por sobreposição a OB mitigado), sem alterar QUAIS OBs são detectados. `zone_mode` e `confluence_affects_score` são opt-in OFF por default. Spec: `docs/SMC_ENGINE_V2_INCREMENTAL_UNIFIED_SPEC/OB_ENRICHMENT_NTSL_PARITY_SPEC.md`.
-
-### 4.2 Live-Replay V4 (`live_replay_v4/`)
-
-| Modulo | Componente | Testes |
-|--------|-----------|--------|
-| `candle_clock.py` | CandleClock, CandleRef, CandleAvailability, CandleStatus | 6 |
-| `contracts.py` | CanonicalTimeframe, IndicatorEmission, IndicatorSnapshot, IndicatorSpec | 5 |
-| `config.py` | LiveReplayV4Config, TemporalConfig, VolatilityBucketConfig | 2 |
-| `hashing.py` | deterministic_hash, canonical_json_dumps, compute_state_hash, compute_content_hash | 6 |
-| `identity.py` | Structure identity + causal timestamp validation | 3 |
-| `state.py` | SerializableState with versioned restore | 4 |
-| `exceptions.py` | 18 exceptions: CausalContract, FutureData, HashConflict, RepositoryScope, FaultInjection, etc. | — |
-| `validation.py` | Foundation validation + indicator validation | 3 |
-| `schema.py` | Schema definition + validate_schema | 3 |
-| `checkpoint.py` | CheckpointService: create, load_latest, validate_integrity | 4 |
-| `dry_run_d1.py` | Dry-run D1: 250 candles, 7 indicators + RSI-HA, no writes | — |
-| `persist_sample_d1.py` | First persistence: 250 candles → 1743 indicators, INVALIDATED status | — |
-| **persistence/** | | |
-| `allowlist.py` | V4_TABLE_ALLOWLIST (18 tables), validate_table_name, is_allowed | 7 |
-| `connection.py` | get_connection with autocommit=False | 2 |
-| `repositories.py` | 11 repositories: ParentRun, TimeframeRun, StatusHistory, Chunk, Checkpoint, Indicator, Reconciliation, Validation, Error, Artifact, CandleSource | 12 |
-| `transactions.py` | ChunkTransactionService (13 steps, 9 fault injection points), chunk_transaction context manager | 5 |
-| `mappings.py` | indicator_to_row mapping | 1 |
-| **indicators/** | | |
-| `engine.py` | IncrementalIndicatorEngine: batch_reference, snapshot, restore | 8 |
-| `registry.py` | IndicatorRegistry + build_default_registry (7 basic + RSI-HA) | 2 |
-| `true_range.py` | TRUE_RANGE indicator | 2 |
-| `range_metrics.py` | RANGE indicator | 2 |
-| `ema.py` | EMA20, EMA200 indicators | 2 |
-| `rsi.py` | RSI14 indicator | 2 |
-| `atr.py` | ATR14 indicator | 2 |
-| `volatility.py` | VOLATILITY_BUCKET indicator | 2 |
-| `rsi_heikin_ashi.py` | RSI_HEIKIN_ASHI_V1: 15 features, 10 events, warm-up 31, batch/prefix/chunk invariance | 17 |
-
-**Status**: FASE V4_04 concluída — 80 testes (51 existentes + 29 novos). Branch: `feature/winfut-causal-live-replay-v4`.
-
-**Princípios V4:**
-- `shadow_only=True` — nunca escrever em tabelas oficiais
-- Nenhum commit dentro de repository
-- Allowlist imutável de tabelas V4
-- Checkpoint atômico após reconciliação e hash validation
-- RSI-HA: sem intrabar, sem futuro, sem quantil full-window
-- Estado serializável, batch reference, prefix/chunk/resume invariance
-- Hash determinístico, nenhum NaN/Infinity
-
-**Tabelas V4 (18):**
-```
-winfut_lr_v4_parent_runs        winfut_lr_v4_timeframe_runs
-winfut_lr_v4_status_history     winfut_lr_v4_chunks
-winfut_lr_v4_checkpoints        winfut_lr_v4_indicators
-winfut_lr_v4_reconciliation     winfut_lr_v4_validations
-winfut_lr_v4_errors             winfut_lr_v4_artifacts
-winfut_lr_v4_active_runs        winfut_lr_v4_structures
-winfut_lr_v4_structure_events   winfut_lr_v4_opportunities
-winfut_lr_v4_opportunity_evidence winfut_lr_v4_outcomes
-winfut_lr_v4_trade_events       winfut_lr_v4_trade_simulations
-```
-
-**RSI_HEIKIN_ASHI_V1 Features:**
-```
-RSI_HA_OPEN, RSI_HA_HIGH, RSI_HA_LOW, RSI_HA_CLOSE
-RSI_HA_SIGNAL_EMA14, RSI_HA_DIRECTION, RSI_HA_BODY
-RSI_HA_RANGE, RSI_HA_BODY_RATIO, RSI_HA_UPPER_WICK
-RSI_HA_LOWER_WICK, RSI_HA_SIGNAL_SLOPE, RSI_HA_DISTANCE_TO_SIGNAL
-RSI_HA_ZONE, RSI_HA_CROSS_EVENT
-```
-
-**RSI_HEIKIN_ASHI_V1 Events:**
-```
-BULLISH_FLIP, BEARISH_FLIP, CROSS_ABOVE_SIGNAL, CROSS_BELOW_SIGNAL
-RECOVER_30, LOSE_30, CROSS_ABOVE_50, CROSS_BELOW_50
-CROSS_ABOVE_70, CROSS_BELOW_70
-```
+> **Reorganizado 2026-07-02:** esta seção lista só módulos ATIVOS (código vivo, parte do fluxo real do sistema). Módulos congelados, históricos ou nunca implementados foram movidos para **§12. Módulos Congelados, Históricos e Propostas Não Implementadas** — inclui o antigo `smc_engine_v2/` (congelado em backup), Live-Replay V4 (track de P&D isolado, nunca teve run ACTIVE), SignalResearchV2 (pesquisa de sinais concluída, não é parte do motor causal) e a proposta de Volume Profile (nunca implementada).
 
 ### 4.2 Study Gateway (`study_gateway/`)
 
@@ -544,6 +649,23 @@ scan_once(persist=False)
   │
   └─ save_scan_run(conn, summary)
 ```
+
+### 4.4-A Opportunity Evidence (`technical_engine/opportunity_evidence/`)
+
+> **Adicionado 2026-07-02** — módulo ativo, usado pelo dispatcher real
+> (`services/candle_event_processor/dispatcher.py:545-547`, dentro de
+> `_handle_m5`), mas que não tinha entrada própria nesta seção (só descrito
+> indiretamente em §4.4.2 "Evidence Bundle — Composição").
+
+| Modulo | Descricao |
+|--------|-----------|
+| `builder.py` | `EvidenceBundleBuilder` — constrói `OpportunityEvidenceBundleV1` (28 campos, ver §4.4.2) a partir do signal do scanner |
+| `models.py` | Dataclasses do bundle: `AssetRef`, `TimeframeRef`, `TimingRef`, `DecisionRef`, `LevelsRef`, `RiskRef`, `InputRefs`, `EngineVersions`, `Guardrails`, `HitRates`, `Narrative`, `ZonesRef`, `StructureRef`, `EvidenceItem`, `ZoneRef` |
+| `validator.py` | `BundleValidator` — validação do bundle antes de persistir/publicar |
+| `hashing.py` / `canonicalizer.py` | `compute_sha256` sobre JSON canônico → `bundle_hash` imutável |
+| `persistence.py` | `EvidenceBundlePersistence` — grava o bundle |
+| `outbox.py` | `EvidenceOutbox` — publica evento `OPPORTUNITY_EVIDENCE_CREATED` para consumo assíncrono |
+| `repositories.py`, `serializer.py`, `enums.py`, `errors.py` | Suporte (acesso a dados, serialização, `ConfidenceLabel`, exceções) |
 
 ### 4.5 Operational Plan + Health
 
@@ -1052,12 +1174,23 @@ scan_once(persist=False)
 
 ### 4.8 Infraestrutura
 
+> **Correção 2026-07-02:** `run_b3.py`/`run_forex.py` e seus serviços
+> (`smc-b3-robot.service`, `smc-forex-robot.service`) estão listados abaixo por
+> completude histórica, mas **não são o mecanismo de coleta real** —
+> `smc-b3-robot.service` nem está instalado nesta VPS; `smc-forex-robot.service`
+> está inativo. **Não devem ser reativados** (decisão do produto, 2026-07-02):
+> a coleta ao vivo está deliberadamente pausada e todo o processamento roda
+> sobre CSV local (§4.11-A). O mecanismo real de coleta, quando ativo, é
+> `services/asset_collector/` (ver §3.1-REAL).
+
 | Componente | Descricao |
 |-----------|-----------|
 | `mt5_connection.py` | Dual-port RPyC bridge (B3:11000, Forex:11001) com health check e auto-start |
 | `mt5_core.py` | `process_mt5_data()`: fetch MT5 → DataFrame → indicadores → INSERT market_candles |
-| `run_b3.py` | Robo B3: loop 60s, 6 timeframes, WINFUT/WDOFUT/PETR4/VALE3/ITUB3. Gerenciado por `smc-b3-robot.service` (user systemd, Restart=always) |
-| `run_forex.py` | Robo Forex: loop 60s, 6 timeframes, XAUUSDm/BTCUSDm/EURUSDm/USDJPYm/etc. Gerenciado por `smc-forex-robot.service` (system systemd, Restart=always) |
+| `services/asset_collector/` | Coletor real por ativo (templated, `smc-asset-collector@<SYMBOL>.service`): `cli.py`→`worker.py`→`candle_fetcher.py`→`mt5_gateway.py`→`closed_candle_detector.py`→`event_publisher.py` (publica no outbox `technical_engine_candle_events`) |
+| `services/candle_event_processor/` | Consumidor do outbox (`smc-candle-event-processor.service`): `processor.py` (poll loop) → `repository.py` (`EventRepository.claim_next`, `SELECT...FOR UPDATE SKIP LOCKED`) → `dispatcher.py` (roteia por timeframe, chama `run_smc_engine_v2_local()` + Study/Risk/Scanner para M5) |
+| `run_b3.py` *(histórico, não ativo)* | Robo B3: loop 60s, 6 timeframes, WINFUT/WDOFUT/PETR4/VALE3/ITUB3. `smc-b3-robot.service` não instalado nesta VPS |
+| `run_forex.py` *(histórico, não ativo)* | Robo Forex: loop 60s, 6 timeframes, XAUUSDm/BTCUSDm/EURUSDm/USDJPYm/etc. `smc-forex-robot.service` inativo |
 | `database.py` | MySQL persistence (market_candles, analysis_history, shadow tables) |
 | `dashboard_shadow/` | FastAPI backend (:8008) + React frontend + Dash Plotly (:8050) |
 | `collector_manager.py` | CandleWatcher: 6 ativos × 5 TFs (M2/M5/M15/H4/D1), poll 30s, debounce 5min |
@@ -1065,50 +1198,7 @@ scan_once(persist=False)
 | `vps_monitor.py` | Coleta metrica VPS (CPU/RAM/Disk/Load/Net/Uptime) via /proc/, monitora 8 servicos via pgrep, envia POST HMAC ao site a cada 30s. Servicos: asset_collector, candle_event, mt5linux, sync_watcher, run_b3.py, run_forex.py, run_opportunity_scanner, Xvfb |
 | `vps-monitor.service` | systemd unit (Restart=always) para vps_monitor.py — Python le .env direto, sem EnvironmentFile |
 
-### 4.9 SignalResearchV2 — Pipeline de Pesquisa de Sinais
-
-**Localizacao:** `tools/run_phase6_nested_wf.py` + `tools/update_phase6_report.py`
-
-```
-┌────────────────────────────────────────────────────────────────────┐
-│ SignalResearchV2 — Candidate C Nested Walk-Forward (Fase 6)         │
-│                                                                     │
-│ Objetivo: Avaliar candidato C (7 params, 864 combos, 200 trials)   │
-│ contra Baseline B_V3 via nested walk-forward (8 outer folds)        │
-│                                                                     │
-│ ┌─ SEARCH SPACE (7 parametros) ───────────────────────────────────┐ │
-│ │ stop_buffer_atr:     0.10, 0.15, 0.20, 0.25                    │ │
-│ │ max_stop_atr:        2.0, 2.5, 3.0                              │ │
-│ │ expiry_candles_m5:   6, 9, 12                                   │ │
-│ │ session_only:        true, false                                │ │
-│ │ require_htf_for_tp3: true, false                                │ │
-│ │ breakeven_after_tp1: true, false                                │ │
-│ │ cooldown_bars_m5:    3, 5, 8                                    │ │
-│ └─────────────────────────────────────────────────────────────────┘ │
-│                                                                     │
-│ ┌─ EXECUCAO ──────────────────────────────────────────────────────┐ │
-│ │ 200 trials × 8 outer folds = 1.600 backtest units               │ │
-│ │ ~90s por fold (~4.400 candles M5, janela ~2 meses)              │ │
-│ │ Multi-TF: D1 + H4 (tendencia) + M15 (stop ancora) + M5 (setup) │ │
-│ │ STOP_FIRST_CONSERVATIVE, WINFUT, custos padrao                  │ │
-│ └─────────────────────────────────────────────────────────────────┘ │
-│                                                                     │
-│ ┌─ CHECKPOINT/RESUME ────────────────────────────────────────────┐ │
-│ │ storage/phase6_checkpoints/{run_id}/checkpoint.json             │ │
-│ │ storage/phase6_nested_wf.lock                                   │ │
-│ │ scripts/monitor_phase6.sh (cron 3h → update_phase6_report.py)  │ │
-│ │ Relatorio: docs_geral/Sistema VPS/Plano/Plano Ativo/           │ │
-│ │            BASELINE_FASE_6_1_EXECUCAO_LONGA.md                  │ │
-│ └─────────────────────────────────────────────────────────────────┘ │
-│                                                                     │
-│ Guardrails: shadow_only, research_only, can_promote_trade=false,    │
-│ deterministic=true, anti_lookahead=true                              │
-└────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### 4.10 SMC Engine V3 — Batch Canônico (`smc_engine_v3/`)
+### 4.10 SMC Engine — Batch Canônico (`smc_engine/`)
 
 > ⚠️ **CORREÇÃO (2026-07-01):** este pipeline batch é o que roda em produção hoje
 > (via `run_b3.py` → `infra/sync_v2.py` → `pipeline.py:run_smc_engine_v2_local()`),
@@ -1136,7 +1226,7 @@ scan_once(persist=False)
 > explícita de ativar. Ver §9 do relatório de auditoria acima para detalhes e
 > validação (164 testes, zero regressões).
 
-**Objetivo:** correção algorítmica das 8 engines batch seguindo o plano mestre de orquestração e 8 planos operacionais individuais. Alvo: `technical_engine/smc_engine_v3/` (arquivos planos). `shadow_only=True` em todo o runtime.
+**Objetivo:** correção algorítmica das 8 engines batch seguindo o plano mestre de orquestração e 8 planos operacionais individuais. Alvo: `technical_engine/smc_engine/` (arquivos planos). `shadow_only=True` em todo o runtime.
 
 **Status:** `CANONICAL_V3` — 8 engines refatoradas com melhorias de classificação/lifecycle. **Detecção central de Swing e FVG permanece não-causal por padrão** — correção causal disponível via flag opt-in `causal_swings_fvg=True` (ver aviso acima), ainda não ativada por padrão. Branch `feature/smc-v2-incremental-unified` (merged → main). PR #1.
 
@@ -1153,7 +1243,7 @@ scan_once(persist=False)
 | `order_blocks.py` | Order Block | Lifecycle 10-state (CANDIDATE→...→EXPIRED), freshness, ob_subtype (NORMAL/REJECTION/STACKED) |
 | `fvg.py` | FVG | FvgEventV3 canonical class, detect_ifvg_bpr() for BPR detection |
 
-**Contratos congelados:** `technical_engine/smc_engine_v3/contracts/` — temporal window, guardrails, IDs SHA-256, Scope enum. Re-exportam do kernel `technical_engine/contracts/`.
+**Contratos congelados:** `technical_engine/smc_engine/contracts/` — temporal window, guardrails, IDs SHA-256, Scope enum. Re-exportam do kernel `technical_engine/contracts/`.
 
 **Feature flags por engine:** `completions.py` — FeatureFlags com promote/rollback (shadow_v3 → canonical_v3 → legacy_v2).
 
@@ -1167,14 +1257,14 @@ scan_once(persist=False)
 
 **Pacotes órfãos arquivados:** `technical_engine/_archived_v3_packages_unused/` — código morto do M0-G10 (zero consumidores reais).
 
-### 4.11 SMC Engine V3 Incremental Unified (`technical_engine/smc_engine_v3/incremental/`)
+### 4.11 SMC Engine Incremental Unified (`technical_engine/smc_engine/incremental/`)
 
 > **Correção de path (2026-07-01):** este motor vive em
-> `technical_engine/smc_engine_v3/incremental/`, não em `smc_engine_v2/incremental/`
+> `technical_engine/smc_engine/incremental/`, não em `smc_engine_v2/incremental/`
 > — `technical_engine/smc_engine_v2/` contém apenas um `__init__.py` de 16 linhas,
 > sem lógica própria. Nomes de função/classe internos ainda carregam "v2" por
 > herança histórica (`SmcEngineV2Incremental`, tabelas `smc_v2_*`), mas o código
-> vive fisicamente sob o namespace `smc_engine_v3`.
+> vive fisicamente sob o namespace `smc_engine`.
 
 **Objetivo:** engine SMC única para live + replay + backtest, O(1) por candle, causal (`available_at` guard), com IDs SHA-256 determinísticos para estruturas/eventos/checkpoints. Substituirá o pipeline batch (§4.10, confirmado não-causal) por cutover controlado (ainda **NÃO** em produção).
 
@@ -1242,63 +1332,30 @@ O `ReplayOpportunityAdapter` traduz `StructureEmission + CandleEnvelope` → `Pe
 
 ---
 
-### 4.11 Volume Profile (POC/VA) — Proposta de Confluência (NÃO-IMPLEMENTADO)
+### 4.11-A Cutover — Motor Incremental como Principal (2026-07-02, em andamento)
 
-> **Status: PROPOSTA. Não implementado. Aditivo e OFF por default quando implementado. Não altera detecção nem calibração WINFUT_M5.**
+**Objetivo:** tornar o motor incremental (§4.11) o caminho de produção principal, calculando tudo candle a candle, aposentando o pipeline batch (§4.10) como fallback/ferramenta offline (não apagado). Trabalho feito só em código nesta etapa — nenhum serviço systemd novo criado/ativado. Plano completo: `Sistema VPS/Plano/Plano Ativo/PLANO_MIGRACAO_MOTOR_CAUSAL_INCREMENTAL_PRODUCAO_UNIFICADA.md` (Seções 9-10).
 
-**Objetivo:** usar POC (Point of Control), VAH/VAL (Value Area High/Low), HVN (High Volume Node) e LVN (Low Volume Node) como camada de confluência sobre os módulos SMC, Wyckoff e Elliott já existentes.
+**Decisão operacional vigente (2026-07-02):** coleta ao vivo pausada — `smc-asset-collector@WINFUT.service` desativado a pedido do produto. Todo cálculo (SMC + Elliott/Wyckoff + risk management + oportunidade) roda sobre **CSV local** (`data/csv_import/canonical/`) via o harness da Fase S e/ou recarregando `market_candles` a partir do CSV (`tools/fase_s_simulacao/reload_market_candles_from_csv.py`). `smc-b3-robot.service`/`smc-forex-robot.service` **não devem ser reativados**.
 
-**Definições:**
+**Fase S — harness de simulação causal** (`tools/fase_s_simulacao/run_harness_csv_mtf.py`): relógio-mestre MTF (M2→D1) sobre CSV, acelerado mas respeitando a ordem causal real. Valida candle a candle:
+- **S1+S2** — motor SMC incremental por timeframe.
+- **S3** — Elliott/Wyckoff recalculados a cada candle (não a cada 15min como o `forward_runner` real faz), via a mesma `build_context_states()` de produção.
+- **S4** — cadeia real de decisão (`build_technical_truth_envelope_v2` → `build_operational_plan` → `evaluate_opportunity`, todas funções REAIS de produção), via `technical_engine/study_gateway/incremental_opportunity_bridge.py`.
 
-| Conceito | Descrição |
-|----------|-----------|
-| POC (Point of Control) | Preço com maior volume negociado no perfil do período |
-| Value Area (VA) | Faixa que concentra ~70% do volume; VAH = topo, VAL = fundo. **Nota:** o indicador NTSL de referência usa `Percentual_VA = 40%`; o padrão de mercado é 70%; o valor é parametrizável |
-| HVN (High Volume Node) | Nó de alto volume — região de aceitação/equilíbrio |
-| LVN (Low Volume Node) | Nó de baixo volume — região de rejeição/movimento rápido |
-| Naked/Virgin POC | POC de sessão anterior nunca retocado → forte ímã de preço |
+Resultado validado: 3 meses WINFUT / 6 timeframes, **zero erros** em todas as sub-fases.
 
-**Princípio de design:**
-- POC/VA é **filtro e alvo**, NUNCA gatilho isolado. A entrada continua nascendo da estrutura (sweep → CHoCH/BOS → mitigação em OB/FVG). POC/VA apenas pondera/valida a zona ou define o objetivo.
-- **Aditivo e OFF por padrão:** (proposto) `enable_volume_profile_confluence = False` — sem alterar a detecção atual nem a calibração WINFUT_M5. Mesma filosofia do `ob_subtype` (aditivo).
-- **Determinístico e causal:** o perfil de volume usa apenas candles com `available_at <= candle atual` (sem lookahead). Naked POC só conta sessões anteriores já fechadas.
+**`technical_engine/smc_engine/incremental/live/`** — código de produção do cutover (ainda não ativado como serviço):
 
-**Regras de confluência por módulo (proposta):**
+| Módulo | Papel |
+|---|---|
+| `mysql_repositories.py` | Porte MySQL das 6 classes de persistência nativa (`EngineRunRepositoryMySQL`, `StructureRepositoryMySQL`, `StructureEventRepositoryMySQL`, `CheckpointRepositoryMySQL`, `StreamVersionRepositoryMySQL`, `ReconciliationRepositoryMySQL`) — grava nos nomes oficiais `technical_engine_smc_engine_runs`/`technical_engine_smc_structures`/`technical_engine_smc_structure_events`/`technical_engine_smc_checkpoints`/`technical_engine_smc_active_stream_versions`/`technical_engine_smc_reconciliation` (§6.2 — views graváveis sobre o schema físico `smc_v2_*`, `migrations/20260629_smc_v2_incremental_schema.sql`, renomeado 2026-07-02 conforme `PLANO_PADRONIZACAO_SMC_ENGINE_TABELAS_SMC.md`) |
+| `cutover_store.py` | `PersistedCutoverStore` — persiste o roteamento batch↔incremental por (asset, timeframe) em `smc_v2_active_stream_versions`, casca sobre o `CutoverManager` (Fase 08, antes só em memória) |
+| `runner.py` | `IncrementalCandleRunner` — cold-start/warm-restart via checkpoint (`engine.snapshot()`/`restore()`), persistência nativa + dual-write legado (`legacy_shadow_adapter` → `persist_smc_engine_v2_run`, mesmas 9 tabelas que o site lê), dispara a cadeia S3/S4 real no fechamento do trigger-timeframe |
 
-#### SMC
+**Validação real** (`tools/fase_s_simulacao/run_live_replay_check.py`, contra MySQL real + `market_candles` recarregado com 3 meses de CSV via `reload_market_candles_from_csv.py`): cold-start (6.775 candles, 8.313 estruturas + 17.993 eventos nativos, 34 checkpoints), warm-restart via checkpoint confirmado, dual-write legado confirmado (novo run real para WINFUT nas tabelas `technical_engine_smc_v2_*_shadow`), 20 decisões de oportunidade reais via a cadeia completa — **zero erros** em todas as etapas.
 
-| Regra | Descrição |
-|-------|-----------|
-| OB coincide com HVN | Institucional defendeu volume ali → BOOST de `quality_score` (+10 a +15 pts, parametrizável; alinhado com `mtf_zone_boost` existente) |
-| FVG aponta para POC/HVN | POC/HVN vira alvo preferencial do FVG (take-profit/target) |
-| OB/FVG sobre LVN | Zona de baixa aceitação → possível penalidade leve de quality (parametrizável, default 0 na v1) |
-| Naked POC | Alvo magnético de take-profit quando o trade caminha na direção do POC não-tocado |
-
-#### Wyckoff
-
-| Regra | Descrição |
-|-------|-----------|
-| POC = região de "cause" | Alta densidade de volume = causa construída ali. Mapeamento POC↔fase Wyckoff como **contexto** (não gera entrada) |
-| LVN = spring/upthrust rápidos | Rompimentos por LVN tendem a ser velozes (pouca aceitação). Flag de contexto para spring/upthrust |
-
-#### Elliott
-
-| Regra | Descrição |
-|-------|-----------|
-| POC como alvo corretivo | Ondas B, 2, 4 tendem a "buscar valor" = retornar ao POC/VA. POC/VA como alvo de retração corretiva |
-| Naked POC como extensão | Alvo de extensão de ondas impulsivas (objetivo de preço) |
-| Nota | POC/VA é **contexto/alvo**, nunca gatilho de contagem de ondas |
-
-**Artefatos propostos:**
-
-| Artefato | Descrição |
-|----------|-----------|
-| (proposto) `incremental/components/volume_profile.py` | Calcula HistogramaVolume por candle (tick approximation), POC, VAH, VAL, HVN/LVN. Espelha lógica do indicador NTSL de referência (ApplyTZ, `Percentual_VA` parametrizável, naked/virgin POC do dia anterior) |
-| (proposto) campos no payload OB/FVG | `poc_aligned` (bool), `volume_node` ("HVN"\|"LVN"\|"NEUTRAL"), `nearest_poc` (float), `dist_to_poc_atr` (float). Em `payload_json` (sem DDL), mesmo padrão do `ob_subtype` |
-| (proposto) config | `enable_volume_profile_confluence: bool = False`, `va_percent: float = 0.70`, `hvn_quality_boost: float = 12.0`, `lvn_quality_penalty: float = 0.0`, `poc_target_priority: bool = True` |
-| (proposto) confluência no pipeline | Passo opcional que cruza OB/FVG × volume nodes, análogo ao passo de confluência OB × BOS/CHOCH × Liquidity (hoje OFF por default) |
-
-**Hipótese a validar (não afirmação):** a combinação POC/HVN com OBs existentes como hipótese de melhoria de seletividade — a ser verificada por backtest A/B em shadow-only antes de qualquer claim de performance.
+**Pendente:** ativar como serviço systemd (decisão futura, não tomada), testes automatizados do `IncrementalCandleRunner` (hoje só validado via script manual), reconciliação periódica, decisão sobre `plan_id` sem dedup por conteúdo (`envelope_id` é UUID aleatório a cada trigger).
 
 ---
 
@@ -1354,18 +1411,37 @@ zona.mtf_aligned = True
 
 ### 6.2 Tabelas Shadow (VPS, so leitura para o estudo)
 
-| Tabela | Conteudo |
-|--------|----------|
-| `technical_engine_smc_v2_runs_shadow` | Run metadata (run_id, symbol, timeframe, params, timestamps) |
-| `technical_engine_smc_v2_fvg_shadow` | Fair Value Gaps |
-| `technical_engine_smc_v2_order_blocks_shadow` | Order Blocks (com quality scoring) |
-| `technical_engine_smc_v2_bos_choch_shadow` | BOS/CHOCH structural breaks |
-| `technical_engine_smc_v2_liquidity_shadow` | Liquidity levels |
-| `technical_engine_smc_v2_swings_shadow` | Swing points |
-| `technical_engine_smc_v2_sessions_shadow` | Session markers |
-| `technical_engine_smc_v2_retracements_shadow` | Retracement percentages |
-| `technical_engine_smc_v2_previous_high_low_shadow` | PDH/PDL |
-| `technical_engine_smc_v2_visual_overlays_shadow` | Visual overlays |
+> **Atualizado 2026-07-02** (`PLANO_PADRONIZACAO_SMC_ENGINE_TABELAS_SMC.md`,
+> Fase 3+4): cada tabela abaixo agora tem um **nome oficial novo**
+> (`technical_engine_smc_*`, sem sufixo de versão) que é uma **view**
+> gravável apontando para a tabela física antiga (`*_v2_*_shadow`, ainda a
+> origem física dos dados). `persistence.py` já grava usando o nome novo.
+> Código de leitura antigo (ex: `infra/sync_v2.py`, dormente) continua
+> funcionando sem alteração, lendo a tabela física pelo nome antigo.
+
+| Tabela física (origem) | Nome oficial novo (view gravável) | Conteudo |
+|--------|--------|----------|
+| `technical_engine_smc_v2_runs_shadow` | `technical_engine_smc_runs` | Run metadata (run_id, symbol, timeframe, params, timestamps) |
+| `technical_engine_smc_v2_fvg_shadow` | `technical_engine_smc_fvg` | Fair Value Gaps |
+| `technical_engine_smc_v2_order_blocks_shadow` | `technical_engine_smc_order_blocks` | Order Blocks (com quality scoring) |
+| `technical_engine_smc_v2_bos_choch_shadow` | `technical_engine_smc_bos_choch` | BOS/CHOCH structural breaks |
+| `technical_engine_smc_v2_liquidity_shadow` | `technical_engine_smc_liquidity` | Liquidity levels |
+| `technical_engine_smc_v2_swings_shadow` | `technical_engine_smc_swings` | Swing points |
+| `technical_engine_smc_v2_sessions_shadow` | `technical_engine_smc_sessions` | Session markers |
+| `technical_engine_smc_v2_retracements_shadow` | `technical_engine_smc_retracements` | Retracement percentages |
+| `technical_engine_smc_v2_previous_high_low_shadow` | `technical_engine_smc_previous_high_low` | PDH/PDL |
+| `technical_engine_smc_v2_visual_overlays_shadow` | `technical_engine_smc_visual_overlays` | Visual overlays |
+
+**Schema nativo do motor incremental** (`technical_engine/smc_engine/incremental/live/`, §4.11-A) — mesmo padrão, tabela física antiga + view gravável com nome novo:
+
+| Tabela física (origem) | Nome oficial novo (view gravável) |
+|--------|--------|
+| `smc_v2_engine_runs` | `technical_engine_smc_engine_runs` |
+| `smc_v2_structures` | `technical_engine_smc_structures` |
+| `smc_v2_structure_events` | `technical_engine_smc_structure_events` |
+| `smc_v2_checkpoints` | `technical_engine_smc_checkpoints` |
+| `smc_v2_active_stream_versions` | `technical_engine_smc_active_stream_versions` |
+| `smc_v2_reconciliation` | `technical_engine_smc_reconciliation` |
 | `technical_engine_study_replay_runs_shadow` | Replay runs |
 | `technical_engine_study_replay_samples_shadow` | Replay samples (com truth_envelope_v2) |
 | `technical_engine_study_replay_metrics_shadow` | Replay metrics |
@@ -1412,8 +1488,16 @@ zona.mtf_aligned = True
 
 ## 8. Guardrails (invariantes)
 
+> **Correção 2026-07-02:** `shadow_only=True` é um guardrail COMPORTAMENTAL
+> (nenhuma tabela alimenta execução real de ordens), não uma convenção de
+> nomenclatura. Desde o cutover do motor incremental (§4.11-A), o schema
+> nativo (`smc_v2_structures`/`smc_v2_engine_runs`/etc.) não usa mais o
+> sufixo `*_shadow`, mas continua sujeito ao mesmo guardrail — nenhuma
+> dessas tabelas é lida por execução de ordens real.
+
 ```text
-shadow_only=True                → Nunca escrever em tabelas oficiais
+shadow_only=True                → Nenhuma tabela alimenta execução real de ordens
+                                   (não implica mais sufixo de nome *_shadow — ver acima)
 can_promote_trade=False         → Nunca promover sinal operacional
 apply_automatically=False       → Nunca aplicar config automaticamente
 llm_decision_used=False         → LLM e redatora, nunca motor
@@ -1427,7 +1511,18 @@ probabilidade_proibida=True     → "Taxa historica de alcance", nunca "probabil
 
 ---
 
-## 9. Metricas (2026-06-28)
+## 9. Metricas (2026-06-28, estado operacional atualizado 2026-07-02)
+
+> **Correção 2026-07-02:** linhas "Robôs de coleta" e "Serviços systemd"
+> abaixo refletem o desenho antigo, não o estado real. Estado real
+> confirmado via `systemctl is-active` em 2026-07-02:
+> `smc-mt5-b3-terminal`/`smc-mt5-fx-terminal` ativos (bridge MT5, sem
+> consumidor downstream); TODOS os demais (`smc-asset-collector@WINFUT`,
+> `smc-candle-event-processor`, `smc-study-forward-shadow.timer`,
+> `smc-opportunity-scanner`, `smc-opportunity-notifier`) inativos —
+> **coleta ao vivo pausada por decisão do produto**, todo o processamento
+> roda sobre CSV local (§4.11-A). `smc-b3-robot.service` não instalado;
+> `smc-forex-robot.service` inativo — nenhum dos dois deve ser reativado.
 
 | Metrica | Valor |
 |---------|-------|
@@ -1435,7 +1530,8 @@ probabilidade_proibida=True     → "Taxa historica de alcance", nunca "probabil
 | Testes V4 Live-Replay | 80 passed (51 foundation + 29 V4_04 repositories/RSI-HA/checkpoint) |
 | Testes Laravel (S24) | 33 escritos (PHP indisponivel) |
 | Ativos | 6 (WINFUT, WDOFUT, PETR4, VALE3, XAUUSDm, BTCUSDm) |
-| Robos de coleta | 2 (run_b3.py, run_forex.py) |
+| Robos de coleta (histórico, não ativo) | 2 (run_b3.py, run_forex.py) — ver correção acima |
+| Coleta real (quando ativa) | `services/asset_collector/` — pausada em 2026-07-02, tudo via CSV |
 | Timeframes | 7 (M1, M2, M5, M15, H1, H4, D1) |
 | PRONTO rate (WINFUT M5, 500 samples) | 57.8% |
 | Media PRONTO (6 ativos) | ~50% |
@@ -1520,7 +1616,8 @@ SMC_Trader_System_7_0/            ← raiz do workspace (5 repos GitHub + 1 scri
 ├── SMC_Trader_System 7.0/        ← Repo: AndreRambo/smc-trader-system-7-local
 │                                   Branch: feature/phase6-candidate-c-nested-walk-forward
 ├── technical_engine/           ← motor tecnico completo
-│   ├── smc_engine_v2/          STABLE_FROZEN_V2 (164 testes)
+│   ├── smc_engine_v2/          CONGELADO EM BACKUP (raise ImportError) — ver §4.1. Código real: smc_engine/
+│   ├── smc_engine/          Batch canônico (§4.10) + incremental/ (motor causal, §4.11) + incremental/live/ (cutover, §4.11-A)
 │   ├── live_replay_v4/         Live-Replay V4 (80 testes, 18 tabelas winfut_lr_v4_*)
 │   │   ├── candle_clock.py     CandleClock + CandleRef + CandleAvailability
 │   │   ├── contracts.py        CanonicalTimeframe, IndicatorEmission, IndicatorSnapshot
@@ -1583,8 +1680,10 @@ SMC_Trader_System_7_0/            ← raiz do workspace (5 repos GitHub + 1 scri
 ├── runtime/                    Logs e snapshots do motor
 ├── backups/                    Backups de codigo
 ├── mt5_connection.py           Dual-port RPyC bridge B3:11000/Forex:11001
-├── run_b3.py                   Robo B3 (WINFUT/WDOFUT/PETR4/VALE3/ITUB3)
-├── run_forex.py                Robo Forex (XAUUSDm/BTCUSDm/EURUSDm/etc)
+├── run_b3.py                   Robo B3 (histórico, NÃO ativo — service não instalado, não reativar)
+├── run_forex.py                Robo Forex (histórico, NÃO ativo — service inativo, não reativar)
+├── services/asset_collector/    Coletor real (quando ativo) — ver §3.1-REAL, §4.8
+├── services/candle_event_processor/  Dispatcher real (quando ativo) — ver §3.1-REAL, §4.8
 ├── start_bridges.sh            Inicializa RPyC bridges
 ├── start.sh / start_tunnel.sh  Startup scripts
 ├── cleanup_vps.sh              Manutencao VPS
@@ -1808,3 +1907,214 @@ MT5Backup/                      ← Repo: AndreRambo/smc-mt5-infra (main)
 | Admin CRUD completo | 2026-06-20 | AdminUsuariosPage: coluna Plano (nome+status+expiração), Créditos, toggle ativo/inativo, busca, exclusão. AdminPlanosPage: criar/editar/excluir planos. AdminLicencasPage: modal data (não prompt), suspender, reativar. |
 | Shared admin components | 2026-06-20 | src/components/admin/: AdminModal (reutilizável), AdminField/AdminInput/AdminSelect, adminStyles (btnPri/btnSec/btnRed/badge), adminTypes (UserItem/PlanItem/LicenseItem). Elimina duplicação entre 3 páginas admin. |
 | Backend admin endpoints | 2026-06-20 | POST /users (admin create), PUT /users/{id}/toggle-active, DELETE /users/{id}, POST/PUT/DELETE /plans. AdminController::users() retorna active_license + credit_balance. Fix duplicate apiResource('plans'). |
+
+---
+
+## 12. Módulos Congelados, Históricos e Propostas Não Implementadas
+
+> Movido de §4 (Módulos Principais) em 2026-07-02 — estes módulos não fazem parte do fluxo ativo do sistema hoje. Numeração original das subseções (`### 4.x`) preservada para não quebrar referências cruzadas existentes no restante do documento.
+
+### 4.1 SMC Engine V2 (`smc_engine_v2/`) — CONGELADO EM BACKUP, NÃO É CÓDIGO VIVO
+
+> **Correção 2026-07-02:** este pacote **não existe mais como código funcional**.
+> `technical_engine/smc_engine_v2/__init__.py` hoje contém apenas
+> `raise ImportError("smc_engine_v2 foi movido para backup (Fase M-1C). Use
+> technical_engine.smc_engine.")`. Backup completo em
+> `/home/bimaq/projetos/SMC_Trader_System_7_0/backups/smc_engine_v2`. Nenhum
+> arquivo do repositório importa de `technical_engine.smc_engine_v2.*`
+> (confirmado). Os módulos reais e ativos (fvg.py, order_blocks.py,
+> structure.py, liquidity.py, bpr.py, swings.py, sessions.py, retracements.py,
+> previous_high_low.py, persistence.py, config.py) vivem em
+> `technical_engine/smc_engine/` — ver §4.10/§4.11 para o pipeline batch e o
+> motor incremental REAIS. A tabela abaixo é preservada só como referência
+> histórica da era pré-V3.
+
+| Modulo (histórico, pacote morto) | Componente | Testes |
+|--------|-----------|--------|
+| `pipeline.py` | Orquestrador (10 passos, swings_df compartilhado, raise_on_error) | — |
+| `fvg.py` | FVG: 3-candle imbalance, mitigation 50%, vetorizado, displacement | 38 |
+| `order_blocks.py` | OB: prev+wick, quality scoring (size+session), config-driven, **ob_subtype** (NORMAL/REJECTION/STACKED, NTSL parity) + confluência opt-in | 30 |
+| `structure.py` | BOS/CHOCH: padrao 4 swings, close_break, 62% continuacao | 20 |
+| `liquidity.py` | Liquidity: ATR-based cluster, swept detection | 10 |
+| `bpr.py` | BPR: overlap FVG bull+bear, dedup >60%, quality scoring | 12 |
+| `swings.py` | Swings: rolling window, sem forced alternation | 8 |
+| `persistence.py` | 10 tabelas shadow, load/save, latest_candle_time auto | — |
+| `config.py` | OBQualityConfig, BPRQualityConfig, SMCEngineV2Config | — |
+
+**Status**: histórico. Equivalente vivo e ativo: `technical_engine/smc_engine/` (§4.10) + `technical_engine/smc_engine/incremental/` (§4.11).
+
+### 4.2 Live-Replay V4 (`live_replay_v4/`)
+
+| Modulo | Componente | Testes |
+|--------|-----------|--------|
+| `candle_clock.py` | CandleClock, CandleRef, CandleAvailability, CandleStatus | 6 |
+| `contracts.py` | CanonicalTimeframe, IndicatorEmission, IndicatorSnapshot, IndicatorSpec | 5 |
+| `config.py` | LiveReplayV4Config, TemporalConfig, VolatilityBucketConfig | 2 |
+| `hashing.py` | deterministic_hash, canonical_json_dumps, compute_state_hash, compute_content_hash | 6 |
+| `identity.py` | Structure identity + causal timestamp validation | 3 |
+| `state.py` | SerializableState with versioned restore | 4 |
+| `exceptions.py` | 18 exceptions: CausalContract, FutureData, HashConflict, RepositoryScope, FaultInjection, etc. | — |
+| `validation.py` | Foundation validation + indicator validation | 3 |
+| `schema.py` | Schema definition + validate_schema | 3 |
+| `checkpoint.py` | CheckpointService: create, load_latest, validate_integrity | 4 |
+| `dry_run_d1.py` | Dry-run D1: 250 candles, 7 indicators + RSI-HA, no writes | — |
+| `persist_sample_d1.py` | First persistence: 250 candles → 1743 indicators, INVALIDATED status | — |
+| **persistence/** | | |
+| `allowlist.py` | V4_TABLE_ALLOWLIST (18 tables), validate_table_name, is_allowed | 7 |
+| `connection.py` | get_connection with autocommit=False | 2 |
+| `repositories.py` | 11 repositories: ParentRun, TimeframeRun, StatusHistory, Chunk, Checkpoint, Indicator, Reconciliation, Validation, Error, Artifact, CandleSource | 12 |
+| `transactions.py` | ChunkTransactionService (13 steps, 9 fault injection points), chunk_transaction context manager | 5 |
+| `mappings.py` | indicator_to_row mapping | 1 |
+| **indicators/** | | |
+| `engine.py` | IncrementalIndicatorEngine: batch_reference, snapshot, restore | 8 |
+| `registry.py` | IndicatorRegistry + build_default_registry (7 basic + RSI-HA) | 2 |
+| `true_range.py` | TRUE_RANGE indicator | 2 |
+| `range_metrics.py` | RANGE indicator | 2 |
+| `ema.py` | EMA20, EMA200 indicators | 2 |
+| `rsi.py` | RSI14 indicator | 2 |
+| `atr.py` | ATR14 indicator | 2 |
+| `volatility.py` | VOLATILITY_BUCKET indicator | 2 |
+| `rsi_heikin_ashi.py` | RSI_HEIKIN_ASHI_V1: 15 features, 10 events, warm-up 31, batch/prefix/chunk invariance | 17 |
+
+**Status**: FASE V4_04 concluída — 80 testes (51 existentes + 29 novos). Branch: `feature/winfut-causal-live-replay-v4`.
+
+**Princípios V4:**
+- `shadow_only=True` — nunca escrever em tabelas oficiais
+- Nenhum commit dentro de repository
+- Allowlist imutável de tabelas V4
+- Checkpoint atômico após reconciliação e hash validation
+- RSI-HA: sem intrabar, sem futuro, sem quantil full-window
+- Estado serializável, batch reference, prefix/chunk/resume invariance
+- Hash determinístico, nenhum NaN/Infinity
+
+**Tabelas V4 (18):**
+```
+winfut_lr_v4_parent_runs        winfut_lr_v4_timeframe_runs
+winfut_lr_v4_status_history     winfut_lr_v4_chunks
+winfut_lr_v4_checkpoints        winfut_lr_v4_indicators
+winfut_lr_v4_reconciliation     winfut_lr_v4_validations
+winfut_lr_v4_errors             winfut_lr_v4_artifacts
+winfut_lr_v4_active_runs        winfut_lr_v4_structures
+winfut_lr_v4_structure_events   winfut_lr_v4_opportunities
+winfut_lr_v4_opportunity_evidence winfut_lr_v4_outcomes
+winfut_lr_v4_trade_events       winfut_lr_v4_trade_simulations
+```
+
+**RSI_HEIKIN_ASHI_V1 Features:**
+```
+RSI_HA_OPEN, RSI_HA_HIGH, RSI_HA_LOW, RSI_HA_CLOSE
+RSI_HA_SIGNAL_EMA14, RSI_HA_DIRECTION, RSI_HA_BODY
+RSI_HA_RANGE, RSI_HA_BODY_RATIO, RSI_HA_UPPER_WICK
+RSI_HA_LOWER_WICK, RSI_HA_SIGNAL_SLOPE, RSI_HA_DISTANCE_TO_SIGNAL
+RSI_HA_ZONE, RSI_HA_CROSS_EVENT
+```
+
+**RSI_HEIKIN_ASHI_V1 Events:**
+```
+BULLISH_FLIP, BEARISH_FLIP, CROSS_ABOVE_SIGNAL, CROSS_BELOW_SIGNAL
+RECOVER_30, LOSE_30, CROSS_ABOVE_50, CROSS_BELOW_50
+CROSS_ABOVE_70, CROSS_BELOW_70
+```
+
+### 4.9 SignalResearchV2 — Pipeline de Pesquisa de Sinais
+
+**Localizacao:** `tools/run_phase6_nested_wf.py` + `tools/update_phase6_report.py`
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│ SignalResearchV2 — Candidate C Nested Walk-Forward (Fase 6)         │
+│                                                                     │
+│ Objetivo: Avaliar candidato C (7 params, 864 combos, 200 trials)   │
+│ contra Baseline B_V3 via nested walk-forward (8 outer folds)        │
+│                                                                     │
+│ ┌─ SEARCH SPACE (7 parametros) ───────────────────────────────────┐ │
+│ │ stop_buffer_atr:     0.10, 0.15, 0.20, 0.25                    │ │
+│ │ max_stop_atr:        2.0, 2.5, 3.0                              │ │
+│ │ expiry_candles_m5:   6, 9, 12                                   │ │
+│ │ session_only:        true, false                                │ │
+│ │ require_htf_for_tp3: true, false                                │ │
+│ │ breakeven_after_tp1: true, false                                │ │
+│ │ cooldown_bars_m5:    3, 5, 8                                    │ │
+│ └─────────────────────────────────────────────────────────────────┘ │
+│                                                                     │
+│ ┌─ EXECUCAO ──────────────────────────────────────────────────────┐ │
+│ │ 200 trials × 8 outer folds = 1.600 backtest units               │ │
+│ │ ~90s por fold (~4.400 candles M5, janela ~2 meses)              │ │
+│ │ Multi-TF: D1 + H4 (tendencia) + M15 (stop ancora) + M5 (setup) │ │
+│ │ STOP_FIRST_CONSERVATIVE, WINFUT, custos padrao                  │ │
+│ └─────────────────────────────────────────────────────────────────┘ │
+│                                                                     │
+│ ┌─ CHECKPOINT/RESUME ────────────────────────────────────────────┐ │
+│ │ storage/phase6_checkpoints/{run_id}/checkpoint.json             │ │
+│ │ storage/phase6_nested_wf.lock                                   │ │
+│ │ scripts/monitor_phase6.sh (cron 3h → update_phase6_report.py)  │ │
+│ │ Relatorio: docs_geral/Sistema VPS/Plano/Plano Ativo/           │ │
+│ │            BASELINE_FASE_6_1_EXECUCAO_LONGA.md                  │ │
+│ └─────────────────────────────────────────────────────────────────┘ │
+│                                                                     │
+│ Guardrails: shadow_only, research_only, can_promote_trade=false,    │
+│ deterministic=true, anti_lookahead=true                              │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 4.11 Volume Profile (POC/VA) — Proposta de Confluência (NÃO-IMPLEMENTADO)
+
+> **Status: PROPOSTA. Não implementado. Aditivo e OFF por default quando implementado. Não altera detecção nem calibração WINFUT_M5.**
+
+**Objetivo:** usar POC (Point of Control), VAH/VAL (Value Area High/Low), HVN (High Volume Node) e LVN (Low Volume Node) como camada de confluência sobre os módulos SMC, Wyckoff e Elliott já existentes.
+
+**Definições:**
+
+| Conceito | Descrição |
+|----------|-----------|
+| POC (Point of Control) | Preço com maior volume negociado no perfil do período |
+| Value Area (VA) | Faixa que concentra ~70% do volume; VAH = topo, VAL = fundo. **Nota:** o indicador NTSL de referência usa `Percentual_VA = 40%`; o padrão de mercado é 70%; o valor é parametrizável |
+| HVN (High Volume Node) | Nó de alto volume — região de aceitação/equilíbrio |
+| LVN (Low Volume Node) | Nó de baixo volume — região de rejeição/movimento rápido |
+| Naked/Virgin POC | POC de sessão anterior nunca retocado → forte ímã de preço |
+
+**Princípio de design:**
+- POC/VA é **filtro e alvo**, NUNCA gatilho isolado. A entrada continua nascendo da estrutura (sweep → CHoCH/BOS → mitigação em OB/FVG). POC/VA apenas pondera/valida a zona ou define o objetivo.
+- **Aditivo e OFF por padrão:** (proposto) `enable_volume_profile_confluence = False` — sem alterar a detecção atual nem a calibração WINFUT_M5. Mesma filosofia do `ob_subtype` (aditivo).
+- **Determinístico e causal:** o perfil de volume usa apenas candles com `available_at <= candle atual` (sem lookahead). Naked POC só conta sessões anteriores já fechadas.
+
+**Regras de confluência por módulo (proposta):**
+
+#### SMC
+
+| Regra | Descrição |
+|-------|-----------|
+| OB coincide com HVN | Institucional defendeu volume ali → BOOST de `quality_score` (+10 a +15 pts, parametrizável; alinhado com `mtf_zone_boost` existente) |
+| FVG aponta para POC/HVN | POC/HVN vira alvo preferencial do FVG (take-profit/target) |
+| OB/FVG sobre LVN | Zona de baixa aceitação → possível penalidade leve de quality (parametrizável, default 0 na v1) |
+| Naked POC | Alvo magnético de take-profit quando o trade caminha na direção do POC não-tocado |
+
+#### Wyckoff
+
+| Regra | Descrição |
+|-------|-----------|
+| POC = região de "cause" | Alta densidade de volume = causa construída ali. Mapeamento POC↔fase Wyckoff como **contexto** (não gera entrada) |
+| LVN = spring/upthrust rápidos | Rompimentos por LVN tendem a ser velozes (pouca aceitação). Flag de contexto para spring/upthrust |
+
+#### Elliott
+
+| Regra | Descrição |
+|-------|-----------|
+| POC como alvo corretivo | Ondas B, 2, 4 tendem a "buscar valor" = retornar ao POC/VA. POC/VA como alvo de retração corretiva |
+| Naked POC como extensão | Alvo de extensão de ondas impulsivas (objetivo de preço) |
+| Nota | POC/VA é **contexto/alvo**, nunca gatilho de contagem de ondas |
+
+**Artefatos propostos:**
+
+| Artefato | Descrição |
+|----------|-----------|
+| (proposto) `incremental/components/volume_profile.py` | Calcula HistogramaVolume por candle (tick approximation), POC, VAH, VAL, HVN/LVN. Espelha lógica do indicador NTSL de referência (ApplyTZ, `Percentual_VA` parametrizável, naked/virgin POC do dia anterior) |
+| (proposto) campos no payload OB/FVG | `poc_aligned` (bool), `volume_node` ("HVN"\|"LVN"\|"NEUTRAL"), `nearest_poc` (float), `dist_to_poc_atr` (float). Em `payload_json` (sem DDL), mesmo padrão do `ob_subtype` |
+| (proposto) config | `enable_volume_profile_confluence: bool = False`, `va_percent: float = 0.70`, `hvn_quality_boost: float = 12.0`, `lvn_quality_penalty: float = 0.0`, `poc_target_priority: bool = True` |
+| (proposto) confluência no pipeline | Passo opcional que cruza OB/FVG × volume nodes, análogo ao passo de confluência OB × BOS/CHOCH × Liquidity (hoje OFF por default) |
+
+**Hipótese a validar (não afirmação):** a combinação POC/HVN com OBs existentes como hipótese de melhoria de seletividade — a ser verificada por backtest A/B em shadow-only antes de qualquer claim de performance.
+
+---
