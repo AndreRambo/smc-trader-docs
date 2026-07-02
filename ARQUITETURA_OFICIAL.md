@@ -692,81 +692,157 @@ scan_once(persist=False)
 │ │ ├── contexts/AuthContext.tsx   Auth state (login, 2FA, logout)  │ │
 │ │ ├── lib/                                                     │ │
 │ │ │   ├── api.ts                 Fetch wrapper com auth token     │ │
-│ │ │   └── symbolMap.ts           Shared: apiSymbol, apiTimeframe, │ │
-│ │ │                              tsToUtc (unificado 3 hooks)      │ │
+│ │ │   ├── symbolMap.ts           Shared: apiSymbol, apiTimeframe, │ │
+│ │ │   │                          tsToUtc (unificado 3 hooks)      │ │
+│ │ │   ├── marketSeries.ts        Formatacao de series OHLCV       │ │
+│ │ │   ├── marketTime.ts          Timezone + horarios mercado      │ │
+│ │ │   └── normalizeCandles.ts    Normalizacao de candles API      │ │
 │ │ ├── hooks/                                                   │ │
 │ │ │   useRealMarketData.ts        API polling candles/zones       │ │
 │ │ │   useSmcPerType.ts            Fetch unified + split per-type │ │
 │ │ │   useReplayData.ts            Fetch historico + context data  │ │
+│ │ │   useCredits.ts               Gestao de creditos usuario     │ │
+│ │ │   useUserAssets.ts            Ativos disponiveis por plano   │ │
+│ │ │   useCustomerChart.ts         Chart especifico do cliente    │ │
+│ │ │   useChartColorSettings.ts    Preferencias de cores chart    │ │
+│ │ │   useAdaptivePerformance.ts   Performance adaptativa (fps)   │ │
+│ │ │   useBreakpoint.ts            Breakpoints responsivos        │ │
+│ │ │   useOrientation.ts           Orientacao da tela             │ │
+│ │ │   useReducedMotion.ts         Preferencia reduced-motion     │ │
+│ │ │   useSafeArea.ts              Safe area (mobile/desktop)     │ │
 │ │ ├── components/                                                │ │
 │ │ │   ├── CandlestickChart.tsx   Lightweight Charts v5 + SMC +    │ │
 │ │ │   │                          replay mode integrado            │ │
+│ │ │   ├── PlotlyCandlestickChart.tsx Plotly chart alternativo     │ │
 │ │ │   ├── BackgroundEffects.tsx  TickerTape, MouseGlow, GlowOrbs │ │
 │ │ │   ├── ReplayControls.tsx     Play/Pause/Speed/Seek controls  │ │
 │ │ │   ├── ReplayDatePicker.tsx   Date picker custom DD/MM/AAAA   │ │
+│ │ │   ├── layout/                Componentes de layout            │ │
+│ │ │   ├── lottie/                Animacoes Lottie                 │ │
+│ │ │   ├── motion/                Animacoes Framer Motion          │ │
+│ │ │   ├── three/                 Elementos 3D (Three.js)          │ │
 │ │ │   ├── admin/                 Shared admin components          │ │
 │ │ │   │   ├── AdminModal.tsx       Modal reutilizavel              │ │
 │ │ │   │   ├── AdminField.tsx       Field/Input/Select              │ │
 │ │ │   │   ├── adminStyles.ts       Estilos compartilhados          │ │
 │ │ │ │   │   └── adminTypes.ts        Interfaces (User/Plan/License)  │ │
-│ │ │   └── chart/smc/            SMC per-type pipelines (14 arq)  │ │
+│ │ │   └── chart/smc/            SMC per-type pipelines (36 arq)  │ │
 │ │ │       ├── smcTypes.ts          Types + interfaces nativas    │ │
 │ │ │       ├── smcStyle.ts          Cores SMC_COLORS + SMC_STYLE │ │
 │ │ │       ├── smcRenderUtils.ts    xFromTime, LabelPlacer        │ │
 │ │ │       ├── smcNormalize.ts      Normalizador unificado         │ │
-│ │ │       ├── renderers/           7 renderers Canvas (1/tipo)   │ │
-│ │ │       └── primitives/          7 ISeriesPrimitive wrappers   │ │
+│ │ │       ├── smcVisibility.ts     Controle de visibilidade      │ │
+│ │ │       ├── SmcTemporalIndex.ts  Indexacao temporal            │ │
+│ │ │       ├── SmcViewportController.ts Controle de viewport      │ │
+│ │ │       ├── renderers/           9 renderers Canvas (1/tipo)   │ │
+│ │ │       │   FvgRenderer, ObRenderer, BprRenderer,              │ │
+│ │ │       │   BosRenderer, ChochRenderer, LiquidityRenderer,     │ │
+│ │ │       │   SwingRenderer, SessionRenderer, PdhPdlRenderer     │ │
+│ │ │       ├── primitives/          9 ISeriesPrimitive wrappers   │ │
+│ │ │       └── normalizers/         11 normalizers (1/tipo + utils)│ │
 │ │ └── pages/                                                     │ │
 │ │     ├── Landing.tsx            Landing publica + planos + CTA  │ │
 │ │     ├── Login.tsx              Login com 2FA (code + recovery) │ │
 │ │     ├── Register.tsx           Cadastro                        │ │
 │ │     ├── Dashboard.tsx          Layout admin + sidebar nav      │ │
+│ │     │                                                          │ │
+│ │     ├── [Area do Cliente]:                                     │ │
+│ │     ├── CustomerArea.tsx       Portal do cliente (menu)        │ │
+│ │     ├── CustomerChartPage.tsx  Grafico do cliente              │ │
+│ │     ├── CustomerHistory.tsx    Historico de oportunidades      │ │
+│ │     ├── CustomerOppDetail.tsx  Detalhe de oportunidade         │ │
+│ │     ├── CreditsPage.tsx        Compra/gestao de creditos       │ │
+│ │     ├── AssetSelectionPage.tsx Selecao de ativos               │ │
+│ │     │                                                          │ │
+│ │     ├── [Admin — Saude & Monitor]:                             │ │
 │ │     ├── AdminSystemHealth.tsx  Saude unificada: sync health +  │ │
 │ │     │                          VPS metrics (CPU/RAM/Disk/Load/  │ │
 │ │     │                          sparklines/servicos/rede/uptime) │ │
+│ │     ├── AdminVpsMonitorPage.tsx Monitor dedicado VPS           │ │
+│ │     │                                                          │ │
+│ │     ├── [Admin — Evidencias]:                                  │ │
 │ │     ├── AdminEvidence.tsx      Evidencias (charts/screenshots) │ │
 │ │     ├── AdminEvidenceDetail.tsx Detalhe evidencia por bundleId │ │
+│ │     │                                                          │ │
+│ │     ├── [Graficos & Replay]:                                   │ │
 │ │     ├── ChartPage.tsx          Grafico + watchlist + AI panel  │ │
 │ │     ├── WatchlistPage.tsx      Multi-ativo watchlist table     │ │
 │ │     ├── ReplayPage.tsx         Replay Profit Pro: date picker, │ │
 │ │     │                          context antes do start, play/    │ │
 │ │     │                          pause/seek/speed, Elliott/Wyckoff│ │
+│ │     │                                                          │ │
+│ │     ├── [Indicadores & Alertas]:                               │ │
 │ │     ├── AlertasPage.tsx        Gestao de alertas usuario       │ │
 │ │     ├── IndicadoresPage.tsx    Indicadores tecnicos            │ │
+│ │     │                                                          │ │
+│ │     ├── [Admin — Gestao]:                                      │ │
 │ │     ├── AdminPlanosPage.tsx    Admin: planos CRUD              │ │
 │ │     ├── AdminUsuariosPage.tsx  Admin: usuarios                 │ │
 │ │     ├── AdminLicencasPage.tsx  Admin: licencas                 │ │
 │ │     ├── AdminVendasPage.tsx    Admin: vendas/receita           │ │
 │ │     ├── AdminProdutosPage.tsx  Admin: produtos                 │ │
 │ │     ├── AdminCreditosPage.tsx  Admin: creditos                 │ │
-│ │     └── AdminConfigPage.tsx    Admin: config global            │ │
+│ │     ├── AdminConfigPage.tsx    Admin: config global            │ │
+│ │     ├── AdminAssetsPage.tsx    Admin: ativos                   │ │
+│ │     └── AdminMarketsPage.tsx   Admin: mercados                 │ │
 │ └─────────────────────────────────────────────────────────────────┘ │
 │                                                                     │
 │ ┌─ BACKEND (Laravel 12 + PHP 8.2+) ───────────────────────────────┐ │
 │ │                                                                  │ │
-│ │ app/Http/Controllers/Api/ (14 controllers):                       │ │
+│ │ app/Http/Controllers/Api/ (29 controllers):                       │ │
+│ │                                                                  │ │
+│ │ [Autenticacao & Usuario]:                                        │ │
 │ │   AuthController.php            Register, login, 2FA (TOTP),    │ │
 │ │                                 forgot/reset, recovery, logout  │ │
+│ │   UserAssetController.php       Ativos disponiveis por plano    │ │
+│ │                                                                  │ │
+│ │ [Admin — CRUD]:                                                  │ │
 │ │   AdminController.php           Dashboard stats, users/plans/   │ │
 │ │                                 licenses/products/sales CRUD    │ │
+│ │   AdminAssetController.php      CRUD de ativos (admin)          │ │
+│ │   AdminCreditController.php     Gestao de creditos (admin)      │ │
+│ │   AdminMarketController.php     Gestao de mercados (admin)      │ │
+│ │   AdminVpsServiceController.php Gestao de servicos VPS (admin)  │ │
+│ │   AdminVpsMetricsController.php GET /admin/vps-metrics:         │ │
+│ │                                 latest + history + online check │ │
+│ │                                                                  │ │
+│ │ [Mercado & Conteudo]:                                            │ │
 │ │   PlanController.php            Listagem publica + admin CRUD   │ │
 │ │   MarketDataController.php      assets, candles, zones, study,  │ │
 │ │                                 elliott, wyckoff, state (public)│ │
-│ │   ScannerAlertController.php    Recebe scanner alerts (HMAC),   │ │
-│ │                                 cria opportunity, dispatch FCM  │ │
+│ │   AlertController.php           User alert CRUD                 │ │
+│ │   IndicatorController.php       Indicator CRUD + listing        │ │
+│ │                                                                  │ │
+│ │ [Sync & Bridge (VPS→Site)]:                                      │ │
 │ │   SyncController.php            6 endpoints SMC Bridge (main,   │ │
 │ │                                 candles, zones, study, elliott, │ │
 │ │                                 wyckoff)                        │ │
+│ │   SyncTableController.php       Sync raw tables push (HMAC)     │ │
 │ │   SyncHealthController.php      Heartbeat POST + health GET     │ │
-│ │   MobileOpportunityController   Active/history/show opportunities │ │
+│ │   InternalVpsMetricsController  Recebe metricas VPS (POST,      │ │
+│ │                                 HMAC, Cache::put)               │ │
+│ │   InternalAssetBulkSyncController Bulk sync de ativos (HMAC)    │ │
+│ │   InternalMarketSyncController  Sync de candles/zones (HMAC)    │ │
+│ │   InternalEvidenceController    Gestao interna de evidencias    │ │
+│ │   InternalAnalysisQueueController Fila interna de analises      │ │
+│ │                                                                  │ │
+│ │ [Scanner & Oportunidades]:                                       │ │
+│ │   ScannerAlertController.php    Recebe scanner alerts (HMAC),   │ │
+│ │                                 cria opportunity, dispatch FCM  │ │
+│ │                                                                  │ │
+│ │ [Mobile API]:                                                    │ │
+│ │   MobileOpportunityController   Active/history/show opportunities│ │
+│ │   MobileOpportunityEvidenceController Evidencias mobile         │ │
 │ │   MobileDeviceController.php    Register/delete FCM tokens      │ │
 │ │   MobilePreferenceController    CRUD notification prefs         │ │
-│ │   WebhookController.php         12 payment providers            │ │
-│ │   AlertController.php           User alert CRUD                 │ │
-│ │   IndicatorController.php       Indicator CRUD + listing        │ │
+│ │                                                                  │ │
+│ │ [Pagamentos & IA]:                                               │ │
+│ │   WebhookController.php         13 payment providers            │ │
+│ │   AsaasCheckoutController.php   Checkout Asaas (PIX/boleto)     │ │
+│ │   AiAnalysisController.php      Analises por IA                 │ │
+│ │                                                                  │ │
+│ │ [Utilidades]:                                                    │ │
 │ │   FcmTestController.php         Test push + FCM config status   │ │
-│ │   InternalVpsMetricsController  Recebe metricas VPS (POST,\n│ │                                 HMAC, Cache::put)              │ │
-│ │   AdminVpsMetricsController.php GET /admin/vps-metrics:\n│ │                                 latest + history + online check│ │
 │ │                                                                  │ │
 │ │ app/Http/Middleware/ (4 middleware):                              │ │
 │ │   VerifyScannerHmac.php         HMAC Bearer + body signature    │ │
@@ -774,40 +850,57 @@ scan_once(persist=False)
 │ │   EnforcePlanLimits.php         Per-plan feature enforcement    │ │
 │ │   Cors.php                      Dynamic FRONTEND_URL CORS       │ │
 │ │                                                                  │ │
-│ │ app/Services/:                                                   │ │
+│ │ app/Services/ (6 services):                                        │ │
 │ │   FirebasePushService.php       FCM HTTP v1: OAuth2 JWT →       │ │
 │ │                                 access token → send via cURL    │ │
+│ │   AsaasApiClient.php            Cliente API Asaas (PIX/boleto)  │ │
+│ │   AssetSyncService.php          Sincronizacao de ativos         │ │
+│ │   CreditService.php             Gestao de creditos              │ │
+│ │   SmcZoneService.php            Leitura de zonas SMC            │ │
 │ │   Webhooks/{AbstractProvider, HotmartProvider, KiwifyProvider,  │ │
 │ │            MercadoPagoProvider, PayPalProvider, StripeProvider, │ │
-│ │            GenericProvider}.php  Signature validation + process  │ │
+│ │            AsaasProvider, GenericProvider}.php                   │ │
 │ │                                                                  │ │
 │ │ app/Jobs/:                                                       │ │
 │ │   SendOpportunityPushNotification.php  Queue: filter users by   │ │
 │ │     prefs (assets, proximities, quiet hours, max_pushes/hr),    │ │
 │ │     dedup by alert_id, send FCM, log to push_logs               │ │
 │ │                                                                  │ │
-│ │ app/Models/ (26 models):                                         │ │
-│ │   User, License, Plan, Product, Purchase, Subscription          │ │
-│ │   Alert, Indicator, Configuration                               │ │
+│ │ app/Console/Commands/ (4 commands):                               │ │
+│ │   FcmTest.php                   Test push notification          │ │
+│ │   RegisterTestDevice.php        Registra device FCM de teste    │ │
+│ │   ExpireLicenses.php            Expira licencas vencidas        │ │
+│ │   ReapStaleAnalysis.php         Limpa analises stale            │ │
+│ │                                                                  │ │
+│ │ app/Models/ (34 models):                                         │ │
+│ │   User, License, Plan, Product, Purchase, Subscription,        │ │
+│ │   UserCredit, CreditOrder, CreditTransaction                   │ │
+│ │   Alert, Indicator, Configuration, Market                      │ │
 │ │   SyncAsset, SyncCandle, SyncZone, SyncStudy                    │ │
 │ │   SyncElliottWave, SyncWyckoffPhase, SyncWyckoffEvent           │ │
 │ │   SyncHealthLog, ScannerAlert, Opportunity                      │ │
-│ │   UserDevice, NotificationPreference, PushLog                   │ │
+│ │   OpportunityEvidenceBundle, OpportunityEvidenceArtifact        │ │
+│ │   UserDevice, UserPlanAsset, NotificationPreference, PushLog   │ │
 │ │   AccessLog, AuditLog, WebhookLog                                │ │
+│ │   AiAnalysisRequest                                              │ │
+│ │   Smc/ (subdiretorio com sub-models SMC)                         │ │
 │ └─────────────────────────────────────────────────────────────────┘ │
 │                                                                     │
-│ ┌─ BANCO MySQL (Hostinger — 25+ tabelas em 18 migrations) ───────┐ │
+│ ┌─ BANCO MySQL (Hostinger — 30+ tabelas em 38 migrations) ───────┐ │
 │ │                                                                  │ │
-│ │ Comercial (5): users, plans, licenses, subscriptions, purchases │ │
+│ │ Comercial (8): users, plans, licenses, subscriptions, purchases │ │
+│ │               credit_orders, credit_transactions, user_credits  │ │
 │ │ Auth (6):     personal_access_tokens, sessions, password_resets │ │
 │ │               permissions, roles, role-* pivot tables (Spatie)  │ │
 │ │ Mercado (8):  sync_assets, sync_candles, sync_zones, sync_studies│ │
 │ │               sync_elliott_waves, sync_wyckoff_phases,          │ │
 │ │               sync_wyckoff_events, sync_health_logs             │ │
 │ │ Alertas (3):  scanner_alerts, opportunities, alerts             │ │
-│ │ Mobile (3):   user_devices, notification_preferences, push_logs │ │
+│ │ Mobile (4):   user_devices, user_plan_assets,                   │ │
+│ │               notification_preferences, push_logs               │ │
 │ │ Logs (3):     access_logs, audit_logs, webhook_logs             │ │
-│ │ Outros (2):   indicators, configurations                        │ │
+│ │ Outros (5):   indicators, configurations, markets,              │ │
+│ │               ai_analysis_requests, opportunity_evidence_*      │ │
 │ │ Jobs (2):     jobs, cache                                       │ │
 │ └─────────────────────────────────────────────────────────────────┘ │
 │                                                                     │
@@ -863,13 +956,14 @@ scan_once(persist=False)
 │ │ Dry-run mode: FCM_DRY_RUN=true loga push simulado (sem envio)    │ │
 │ └─────────────────────────────────────────────────────────────────┘ │
 │                                                                     │
-│ ┌─ WEBHOOKS / PAGAMENTOS (12 gateways) ──────────────────────────┐ │
+│ ┌─ WEBHOOKS / PAGAMENTOS (13 gateways) ──────────────────────────┐ │
 │ │                                                                  │ │
 │ │ Endpoint unico: POST /api/webhooks/{provider} (rate: 60/min)    │ │
 │ │                                                                  │ │
-│ │ Providers: hotmart, kiwify, stripe, mercadopago, paypal,        │ │
-│ │           eduzz, ticto, kirvano, monetizze, woocommerce,        │ │
-│ │           shopify, perfectpay                                     │ │
+│ │ Providers (8 dedicados + GenericProvider para os demais):        │ │
+│ │   hotmart, kiwify, stripe, mercadopago, paypal, asaas,          │ │
+│ │   eduzz, ticto, kirvano, monetizze, woocommerce, shopify,       │ │
+│ │   perfectpay (ultimos 6 via GenericProvider)                     │ │
 │ │                                                                  │ │
 │ │ Processing flow:                                                  │ │
 │ │   1. Validate provider-specific signature                        │ │
@@ -892,7 +986,7 @@ scan_once(persist=False)
 │ │   Fonts:      Bebas Neue (display), DM Sans (body), DM Mono (mono)│ │
 │ └─────────────────────────────────────────────────────────────────┘ │
 │                                                                     │
-│ ┌─ ROTAS API (40+ endpoints em routes/api.php) ───────────────────┐ │
+│ ┌─ ROTAS API (85+ endpoints em routes/api.php, 337 linhas) ─────┐ │
 │ │                                                                  │ │
 │ │ Public (sem auth):                                                │ │
 │ │   POST /api/auth/login, register, verify-2fa, recovery,          │ │
@@ -909,24 +1003,29 @@ scan_once(persist=False)
 │ │   POST /api/logout, /api/logout-all                               │ │
 │ │   POST /api/2fa/setup, enable, disable                            │ │
 │ │   GET  /api/mobile/opportunities/active, history, /{id}          │ │
+│ │   GET  /api/mobile/opportunities/{id}/evidence, chart            │ │
 │ │   POST /api/mobile/devices, DELETE /api/mobile/devices/{id}      │ │
 │ │   GET|PUT /api/mobile/preferences, assets, proximities            │ │
-│ │   CRUD /api/alerts                                                │ │
+│ │   GET  /api/user/assets, /api/user/credits                        │ │
+│ │   POST /api/checkout/asaas                                        │ │
+│ │   CRUD /api/alerts, /api/ai/analyses                             │ │
 │ │                                                                  │ │
 │ │ Admin (auth:sanctum + role:admin):                                │ │
 │ │   GET  /api/admin/dashboard, users, plans, licenses, products    │ │
-│ │   POST|PUT|DELETE /api/admin/plans, indicators                   │ │
+│ │   POST|PUT|DELETE /api/admin/plans, indicators, assets, markets  │ │
+│ │   POST|PUT /api/admin/credits, /api/admin/vps-services           │ │
 │ │   GET  /api/admin/vps-metrics  (VPS: latest + history, 15s poll) │ │
 │ │   GET  /api/admin/evidences, /api/admin/evidences/{bundleId}     │ │
 │ │                                                                  │ │
 │ │ HMAC Internal:                                                    │ │
 │ │   POST /api/sync, /api/sync/candles, zones, study, elliott,     │ │
-│ │        wyckoff                                                   │ │
+│ │        wyckoff, tables/push                                      │ │
 │ │   POST /api/scanner/alerts                                       │ │
-│ │   POST /api/internal/vps-metrics  (VPS → site, 30s push, HMAC)  │ │
+│ │   POST /api/internal/vps-metrics, assets/bulk-sync,              │ │
+│ │        market/sync, evidences, analysis/queue                    │ │
 │ │                                                                  │ │
 │ │ Webhooks:                                                         │ │
-│ │   POST /api/webhooks/{provider}  (12 providers)                  │ │
+│ │   POST /api/webhooks/{provider}  (13 providers)                  │ │
 │ └─────────────────────────────────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────────┘
 ```
